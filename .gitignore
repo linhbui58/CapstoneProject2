@@ -1,0 +1,16 @@
+# Sensitive config
+config/db.php
+
+# Upload folder
+assets/images/campaigns/*.jpg
+assets/images/campaigns/*.png
+assets/images/campaigns/*.webp
+assets/images/campaigns/*.gif
+
+# XAMPP / system files
+*.log
+.DS_Store
+Thumbs.db
+
+# Setup file (delete after use)
+setup.php
