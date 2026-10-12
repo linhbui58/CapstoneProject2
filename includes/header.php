@@ -17,6 +17,7 @@ if ($role === 'donor') {
         'campaigns'    =>['label'=>'Browse Campaigns','icon'=>'bi-collection-fill',  'url'=>SITE_URL.'/donor/campaigns.php'],
         'donate'       =>['label'=>'Make a Donation', 'icon'=>'bi-heart-fill',       'url'=>SITE_URL.'/donor/donate.php'],
         'my_donations' =>['label'=>'My Donations',    'icon'=>'bi-receipt',          'url'=>SITE_URL.'/donor/my_donations.php'],
+        'impact'       =>['label'=>'My Impact',       'icon'=>'bi-award-fill',        'url'=>SITE_URL.'/donor/impact_summary.php'],
         'notifications'=>['label'=>'Notifications',   'icon'=>'bi-bell-fill',        'url'=>SITE_URL.'/donor/notifications.php'],
     ];
 } elseif ($role === 'finance_staff') {
@@ -41,9 +42,11 @@ if ($role === 'donor') {
         'dashboard'    =>['label'=>'Dashboard',      'icon'=>'bi-grid-fill',           'url'=>SITE_URL.'/manager/dashboard.php'],
         'campaigns'    =>['label'=>'All Campaigns',  'icon'=>'bi-megaphone-fill',      'url'=>SITE_URL.'/manager/campaigns.php'],
         'donations'    =>['label'=>'All Donations',  'icon'=>'bi-cash-stack',          'url'=>SITE_URL.'/manager/donations.php'],
-        'reports'      =>['label'=>'Reports',        'icon'=>'bi-bar-chart-line-fill', 'url'=>SITE_URL.'/manager/reports.php'],
-        'users'        =>['label'=>'Users',          'icon'=>'bi-people-fill',         'url'=>SITE_URL.'/manager/users.php'],
-        'notifications'=>['label'=>'Notifications',  'icon'=>'bi-bell-fill',           'url'=>SITE_URL.'/manager/notifications.php'],
+        'reports'      =>['label'=>'Reports',         'icon'=>'bi-bar-chart-line-fill', 'url'=>SITE_URL.'/manager/reports.php'],
+        'segmentation' =>['label'=>'Donor Segments',  'icon'=>'bi-diagram-3-fill',      'url'=>SITE_URL.'/manager/donor_segmentation.php'],
+        'prediction'   =>['label'=>'Predictions',     'icon'=>'bi-graph-up-arrow',      'url'=>SITE_URL.'/manager/campaign_prediction.php'],
+        'users'        =>['label'=>'Users',            'icon'=>'bi-people-fill',         'url'=>SITE_URL.'/manager/users.php'],
+        'notifications'=>['label'=>'Notifications',   'icon'=>'bi-bell-fill',           'url'=>SITE_URL.'/manager/notifications.php'],
     ];
 }
 
