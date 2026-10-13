@@ -126,3 +126,5 @@ function redirectToDashboard() {
             break;
         default:
             redirect(SITE_URL . '/index.php');
+    }
+}
