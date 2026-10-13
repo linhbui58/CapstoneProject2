@@ -83,6 +83,20 @@ function getCurrentUser() {
 }
 
 // ----------------------
+// Get display label for a role
+// ----------------------
+function getRoleLabel($role) {
+    $labels = [
+        'donor'          => 'Donor',
+        'finance_staff'  => 'Finance Staff',
+        'campaign_staff' => 'Campaign Staff',
+        'manager'        => 'Manager',
+    ];
+
+    return $labels[$role] ?? ucfirst(str_replace('_', ' ', (string) $role));
+}
+
+// ----------------------
 // Require login
 // ----------------------
 function requireLogin() {
