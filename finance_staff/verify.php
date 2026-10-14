@@ -40,7 +40,8 @@ $history = $db->query("
 // Handle verification action
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action           = $_POST['action'] ?? '';
-    $rejection_reason = sanitize($_POST['rejection_reason'] ?? '');
+    $rejection_input  = $_POST['rejection_reason'] ?? '';
+    $rejection_reason = is_string($rejection_input) ? trim($rejection_input) : '';
 
     if (!in_array($action, ['verified', 'rejected'])) {
         setFlash('danger', 'Invalid action.');
