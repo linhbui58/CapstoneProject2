@@ -22,8 +22,9 @@ The system aims to improve the consistency, traceability, and management of dona
 * **Local Development Environment:** XAMPP
 * **Database Management:** phpMyAdmin
 * **Version Control:** Git and GitHub
-
-*Note: Confirm these technologies against the actual project implementation and update this section if necessary.*
+* **Hosting:** InfinityFree
+* **Domain & Deployment:** https://vcf-transaction-system.wuaze.com/
+* **CI/CD:** GitHub Actions
 
 ## 4. Project Structure
 
