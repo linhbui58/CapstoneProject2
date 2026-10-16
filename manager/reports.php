@@ -55,6 +55,30 @@ if ($channels) { while($c=$channels->fetch_assoc()) { $ch_labels[]=ucfirst(str_r
 $repeat_donors = $db->query("SELECT COUNT(*) as cnt FROM (SELECT donor_id FROM donations WHERE status='verified' GROUP BY donor_id HAVING COUNT(*)>1) t")->fetch_assoc()['cnt'];
 $retention_rate = $total_donors > 0 ? round(($repeat_donors/$total_donors)*100,1) : 0;
 $ack_time = $db->query("SELECT COALESCE(AVG(TIMESTAMPDIFF(HOUR,d.created_at,t.verified_at)),0) as avg FROM transactions t JOIN donations d ON t.donation_id=d.id WHERE t.verification_status='verified' AND t.verified_at IS NOT NULL")->fetch_assoc()['avg'];
+
+// ── KPI Metrics (per assignment rubric) ──────────────────────────────────────
+
+// KPI-1: Campaign target-attainment rate
+// % of active/completed campaigns that have reached ≥100% of their target
+$total_camps_eval = (int)$db->query("SELECT COUNT(*) as c FROM campaigns WHERE status IN ('active','completed')")->fetch_assoc()['c'];
+$reached_target   = (int)$db->query("SELECT COUNT(*) as c FROM campaigns WHERE status IN ('active','completed') AND raised_amount >= target_amount")->fetch_assoc()['c'];
+$target_attainment = $total_camps_eval > 0 ? round(($reached_target / $total_camps_eval) * 100, 1) : 0;
+
+// KPI-2: Donor retention / repeat-donation rate (already computed above as $retention_rate)
+// Shown again as KPI card with context
+
+// KPI-3: Average donation value (VND) — verified donations only
+$avg_donation_val = $db->query("SELECT COALESCE(AVG(amount),0) as avg FROM donations WHERE status='verified'")->fetch_assoc()['avg'];
+
+// KPI-4: Fund utilization transparency rate
+// % of raised funds that have been allocated to a purpose
+$total_raised_f   = (float)$db->query("SELECT COALESCE(SUM(raised_amount),0) as t FROM campaigns")->fetch_assoc()['t'];
+$total_alloc_f    = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations")->fetch_assoc()['t'];
+$fund_util_rate   = $total_raised_f > 0 ? round(($total_alloc_f / $total_raised_f) * 100, 1) : 0;
+$unallocated      = max(0, $total_raised_f - $total_alloc_f);
+
+// KPI-5: Acknowledgement turnaround time (hours) — already computed as $ack_time
+// Average hours from donation submission to verification
 ?>
 
 <div class="page-header d-flex justify-content-between align-items-center">
@@ -90,6 +114,100 @@ $ack_time = $db->query("SELECT COALESCE(AVG(TIMESTAMPDIFF(HOUR,d.created_at,t.ve
         </div>
     </div>
     <?php endforeach; ?>
+</div>
+
+<!-- ── KPI Performance Indicators ─────────────────────── -->
+<div style="margin-bottom:22px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        <span style="width:28px;height:28px;background:#dbeafe;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+            <i class="bi bi-speedometer2" style="color:#1447c0;font-size:.78rem;"></i>
+        </span>
+        <span style="font-size:.92rem;font-weight:700;color:#0f172a;">Performance KPIs</span>
+        <span style="background:#dbeafe;color:#1447c0;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;">Evaluation rubric metrics</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:13px;">
+
+        <!-- KPI-1: Campaign Target-Attainment Rate -->
+        <?php
+        $kpi1_color = $target_attainment >= 50 ? '#15803d' : ($target_attainment >= 25 ? '#d97706' : '#dc2626');
+        $kpi1_bg    = $target_attainment >= 50 ? '#dcfce7'  : ($target_attainment >= 25 ? '#fef9c3'  : '#fee2e2');
+        ?>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi1_bg ?>;"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi1_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="bi bi-trophy-fill" style="color:<?= $kpi1_color ?>;font-size:.88rem;"></i>
+            </div>
+            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi1_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $target_attainment ?>%</div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Target Attainment</div>
+            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= $reached_target ?> of <?= $total_camps_eval ?> campaigns reached 100%</div>
+        </div>
+
+        <!-- KPI-2: Donor Retention Rate -->
+        <?php
+        $kpi2_color = $retention_rate >= 60 ? '#15803d' : ($retention_rate >= 30 ? '#d97706' : '#dc2626');
+        $kpi2_bg    = $retention_rate >= 60 ? '#dcfce7'  : ($retention_rate >= 30 ? '#fef9c3'  : '#fee2e2');
+        ?>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi2_bg ?>;"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi2_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="bi bi-arrow-repeat" style="color:<?= $kpi2_color ?>;font-size:.88rem;"></i>
+            </div>
+            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi2_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $retention_rate ?>%</div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Donor Retention</div>
+            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= $repeat_donors ?> of <?= $total_donors ?> donors gave again</div>
+        </div>
+
+        <!-- KPI-3: Average Donation Value -->
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#dbeafe;"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:#dbeafe;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="bi bi-cash-coin" style="color:#1447c0;font-size:.88rem;"></i>
+            </div>
+            <div style="font-size:1.3rem;font-weight:900;color:#1447c0;letter-spacing:-.03em;line-height:1;margin-bottom:4px;"><?= number_format($avg_donation_val/1000000,1) ?>M</div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Avg Donation (VND)</div>
+            <div style="font-size:.68rem;color:#64748b;line-height:1.4;">Per verified donation</div>
+        </div>
+
+        <!-- KPI-4: Fund Utilization Transparency Rate -->
+        <?php
+        $kpi4_color = $fund_util_rate >= 70 ? '#15803d' : ($fund_util_rate >= 40 ? '#d97706' : '#dc2626');
+        $kpi4_bg    = $fund_util_rate >= 70 ? '#dcfce7'  : ($fund_util_rate >= 40 ? '#fef9c3'  : '#fee2e2');
+        ?>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi4_bg ?>;"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi4_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="bi bi-pie-chart-fill" style="color:<?= $kpi4_color ?>;font-size:.88rem;"></i>
+            </div>
+            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi4_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $fund_util_rate ?>%</div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Fund Utilization</div>
+            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= number_format($total_alloc_f/1000000,1) ?>M of <?= number_format($total_raised_f/1000000,1) ?>M allocated</div>
+            <div style="height:4px;background:#f1f5f9;border-radius:2px;overflow:hidden;margin-top:8px;">
+                <div style="height:100%;width:<?= min(100,$fund_util_rate) ?>%;background:<?= $kpi4_color ?>;border-radius:2px;transition:width .5s;"></div>
+            </div>
+        </div>
+
+        <!-- KPI-5: Acknowledgement Turnaround Time -->
+        <?php
+        $ack_h      = round((float)$ack_time, 1);
+        $kpi5_color = $ack_h <= 24 ? '#15803d' : ($ack_h <= 72 ? '#d97706' : '#dc2626');
+        $kpi5_bg    = $ack_h <= 24 ? '#dcfce7'  : ($ack_h <= 72 ? '#fef9c3'  : '#fee2e2');
+        $kpi5_label = $ack_h <= 24 ? 'Excellent' : ($ack_h <= 72 ? 'Acceptable' : 'Needs attention');
+        ?>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi5_bg ?>;"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi5_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="bi bi-clock-fill" style="color:<?= $kpi5_color ?>;font-size:.88rem;"></i>
+            </div>
+            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi5_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $ack_h ?>h</div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Acknowledgement Time</div>
+            <div style="font-size:.68rem;color:#64748b;line-height:1.4;">Avg submission → verified</div>
+            <span style="display:inline-flex;align-items:center;gap:3px;background:<?= $kpi5_bg ?>;border-radius:5px;padding:2px 7px;margin-top:6px;">
+                <span style="font-size:.63rem;font-weight:700;color:<?= $kpi5_color ?>;"><?= $kpi5_label ?></span>
+            </span>
+        </div>
+
+    </div>
 </div>
 
 <div class="row g-4 mb-4">

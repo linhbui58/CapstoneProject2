@@ -67,7 +67,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->query("UPDATE campaigns SET raised_amount = raised_amount + {$txn['amount']} WHERE id={$txn['campaign_id']}");
         }
         $db->query("UPDATE donor_profiles SET total_donated = total_donated + {$txn['amount']} WHERE user_id = (SELECT donor_id FROM donations WHERE id={$txn['donation_id']})");
-        $notif_msg  = "Your donation of " . formatCurrency($txn['amount']) . " has been verified successfully! Thank you for your contribution.";
+
+        // Personalized acknowledgement message
+        $donor_first = explode(' ', $txn['donor_name'])[0];
+        $campaign_name = $txn['campaign_title'] ?? 'our fundraising campaign';
+        $new_raised  = (float)$txn['raised_amount'] + (float)$txn['amount'];
+        $new_pct     = $txn['target_amount'] > 0 ? round(($new_raised / $txn['target_amount']) * 100, 1) : 0;
+
+        if ($txn['campaign_id'] && $txn['campaign_title']) {
+            $notif_msg = "Dear {$donor_first}, your donation of " . formatCurrency($txn['amount'])
+                . " to \"{$campaign_name}\" has been verified and recorded. "
+                . "Thanks to supporters like you, this campaign has now reached {$new_pct}% of its fundraising goal. "
+                . "Your generosity makes a real difference — thank you! 🙏";
+        } else {
+            $notif_msg = "Dear {$donor_first}, your general donation of " . formatCurrency($txn['amount'])
+                . " has been verified and recorded successfully. "
+                . "Thank you for your generous contribution to VinaCapital Foundation. "
+                . "Your support helps us continue our mission! 🙏";
+        }
         $notif_type = 'confirmation';
         $flash_msg  = 'Transaction verified successfully!';
     } else {

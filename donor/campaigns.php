@@ -31,7 +31,16 @@ $campaigns = $db->query("
             <div class="col-md-6 col-lg-4">
                 <div class="campaign-card h-100 d-flex flex-column">
                     <div class="campaign-img">
-                        <i class="bi bi-heart-pulse"></i>
+                        <?php if (!empty($c['image_url'])): ?>
+                        <img src="<?= htmlspecialchars($c['image_url']) ?>"
+                             alt="<?= htmlspecialchars($c['title']) ?>"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;">
+                            <i class="bi bi-megaphone-fill" style="font-size:2.5rem;color:rgba(255,255,255,.25);"></i>
+                        </div>
+                        <?php else: ?>
+                        <i class="bi bi-megaphone-fill" style="font-size:2.5rem;color:rgba(255,255,255,.25);"></i>
+                        <?php endif; ?>
                     </div>
                     <div class="p-4 flex-grow-1 d-flex flex-column">
                         <div class="d-flex justify-content-between align-items-start mb-2">
