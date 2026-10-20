@@ -80,6 +80,21 @@ C:\xampp\htdocs\CapstoneProject2
 3. Import the SQL setup script provided in the `database/` directory, if available.
 4. Configure the database connection in the appropriate file under `config/`.
 
+The QR donation and finance verification endpoints use PDO. Configure these environment variables for the PHP process as well:
+
+```text
+DB_HOST=localhost
+DB_NAME=vcf_donation
+DB_USER=your_database_user
+DB_PASSWORD=your_database_password
+VIETQR_BANK_ID=your_vietqr_bank_code_or_bin
+VIETQR_BANK_NAME=your_bank_name
+VIETQR_ACCOUNT_NO=your_fund_account_number
+VIETQR_ACCOUNT_NAME=your_fund_account_name
+```
+
+Do not commit database credentials or the fund account configuration to the repository.
+
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
 ### Step 5: Run the Application

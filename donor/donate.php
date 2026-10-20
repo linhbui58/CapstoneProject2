@@ -6,6 +6,9 @@ requireRole('donor');
 
 $db  = getDB();
 $uid = $user['id'];
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $campaign_id = isset($_GET['campaign_id']) ? (int)$_GET['campaign_id'] : null;
 $campaign    = null;
@@ -15,50 +18,6 @@ if ($campaign_id) {
 }
 $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='active' ORDER BY title");
 
-$errors = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $amount     = (float)($_POST['amount'] ?? 0);
-    $channel    = $_POST['channel'] ?? '';
-    $cid        = !empty($_POST['campaign_id']) ? (int)$_POST['campaign_id'] : null;
-    $message    = sanitize($_POST['message'] ?? '');
-    $is_anon    = isset($_POST['is_anonymous']) ? 1 : 0;
-    $ref_code   = sanitize($_POST['reference_code'] ?? '');
-    $bank_name  = sanitize($_POST['bank_name'] ?? '');
-    $acc_number = sanitize($_POST['account_number'] ?? '');
-    $txn_date   = sanitize($_POST['transaction_date'] ?? '');
-    $txn_amount = (float)($_POST['amount_transferred'] ?? 0);
-
-    if ($amount <= 0)     $errors[] = 'Donation amount must be greater than 0.';
-    if (empty($channel))  $errors[] = 'Please select a donation channel.';
-    if (empty($ref_code)) $errors[] = 'Transaction reference code is required.';
-    if (empty($txn_date)) $errors[] = 'Transaction date is required.';
-
-    if (empty($errors)) {
-        $cid_sql = $cid ? $cid : 'NULL';
-        $msg_esc = $db->real_escape_string($message);
-        $ch_esc  = $db->real_escape_string($channel);
-        $db->query("INSERT INTO donations (donor_id,campaign_id,amount,channel,message,is_anonymous,status) VALUES ($uid,$cid_sql,$amount,'$ch_esc','$msg_esc',$is_anon,'pending')");
-        $donation_id = $db->insert_id;
-
-        $ref_esc  = $db->real_escape_string($ref_code);
-        $bank_esc = $db->real_escape_string($bank_name);
-        $acc_esc  = $db->real_escape_string($acc_number);
-        $date_esc = $db->real_escape_string($txn_date);
-        $db->query("INSERT INTO transactions (donation_id,reference_code,bank_name,account_number,transaction_date,amount_transferred,verification_status) VALUES ($donation_id,'$ref_esc','$bank_esc','$acc_esc','$date_esc',$txn_amount,'pending_verification')");
-        $txn_id = $db->insert_id;
-
-        $db->query("INSERT INTO verification_history (transaction_id,action,performed_by,new_status,notes) VALUES ($txn_id,'submitted',$uid,'pending_verification','Donation submitted by donor')");
-        $db->query("INSERT INTO notifications (user_id,title,message,type) VALUES ($uid,'Donation Submitted','Your donation of ".formatCurrency($amount)." has been submitted and is pending verification.','confirmation')");
-
-        $staff_res = $db->query("SELECT id FROM users WHERE role='finance_staff' AND is_active=1");
-        if ($staff_res) while ($s = $staff_res->fetch_assoc()) {
-            $db->query("INSERT INTO notifications (user_id,title,message,type) VALUES ({$s['id']},'New Transaction Pending','A new donation of ".formatCurrency($amount)." is pending verification.','system')");
-        }
-
-        setFlash('success', 'Your donation has been submitted! Our Finance Staff will verify it shortly.');
-        redirect(SITE_URL . '/donor/my_donations.php');
-    }
-}
 ?>
 
 <!-- Page header -->
@@ -79,22 +38,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </a>
 </div>
 
-<!-- Error box -->
-<?php if (!empty($errors)): ?>
-<div style="background:#fff1f2;border-left:3px solid #ef4444;padding:12px 16px;border-radius:10px;margin-bottom:18px;">
-    <div style="font-weight:700;color:#b91c1c;font-size:.82rem;margin-bottom:6px;">
-        <i class="bi bi-exclamation-circle-fill" style="margin-right:6px;"></i>Please fix the following:
-    </div>
-    <ul style="margin:0;padding-left:18px;color:#b91c1c;font-size:.8rem;">
-        <?php foreach($errors as $e): ?><li><?= htmlspecialchars($e) ?></li><?php endforeach; ?>
-    </ul>
-</div>
-<?php endif; ?>
-
 <div style="display:grid;grid-template-columns:1fr 300px;gap:22px;align-items:start;">
 
 <!-- ══ MAIN FORM ══════════════════════════════════ -->
 <form method="POST" id="donateForm">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
 
     <!-- Step 1: Campaign & Amount -->
     <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;margin-bottom:16px;">
@@ -110,10 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Campaign select -->
             <div style="margin-bottom:16px;">
                 <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:5px;">Campaign / Program</label>
-                <select name="campaign_id"
+                <select name="campaign_id" required
                         style="width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;background:white;outline:none;transition:border-color .15s;"
                         onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'">
-                    <option value="">— General Donation (no specific campaign) —</option>
+                    <option value="">— Select a campaign —</option>
                     <?php if ($all_campaigns): $all_campaigns->data_seek(0); while ($ac=$all_campaigns->fetch_assoc()): ?>
                     <option value="<?= $ac['id'] ?>" <?= ($campaign_id==$ac['id'])?'selected':'' ?>>
                         <?= htmlspecialchars($ac['title']) ?>
@@ -162,38 +110,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
-            <!-- Channel -->
-            <div>
-                <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:8px;">
-                    Donation Channel <span style="color:#ef4444;">*</span>
-                </label>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                    <?php
-                    $channels=[
-                        ['bank_transfer','bi-bank2','Bank Transfer','#dbeafe','#1447c0'],
-                        ['e_wallet','bi-phone-fill','E-Wallet','#dcfce7','#15803d'],
-                        ['credit_card','bi-credit-card-fill','Credit Card','#ede9fe','#7c3aed'],
-                        ['paypal','bi-paypal','PayPal','#fff7ed','#c2410c'],
-                        ['cash','bi-cash-stack','Cash','#fef9c3','#854d0e'],
-                    ];
-                    $sel_ch = $_POST['channel'] ?? '';
-                    foreach($channels as [$val,$icon,$label,$bg,$color]): ?>
-                    <label style="display:flex;align-items:center;gap:10px;padding:10px 13px;border:1.5px solid <?= $sel_ch===$val?$color:'#e2e8f0' ?>;border-radius:10px;cursor:pointer;background:<?= $sel_ch===$val?$bg:'white' ?>;transition:all .15s;" class="channel-label" data-val="<?= $val ?>">
-                        <input type="radio" name="channel" value="<?= $val ?>" required
-                               style="display:none;" <?= $sel_ch===$val?'checked':'' ?>>
-                        <div style="width:32px;height:32px;border-radius:8px;background:<?= $bg ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                            <i class="bi <?= $icon ?>" style="color:<?= $color ?>;font-size:.88rem;"></i>
-                        </div>
-                        <span style="font-size:.79rem;font-weight:600;color:#334155;"><?= $label ?></span>
-                    </label>
-                    <?php endforeach; ?>
-                </div>
-            </div>
+            <input type="hidden" name="channel" value="bank_transfer">
         </div>
     </div>
 
+    <div id="qrPanel" style="display:none;background:white;border:1px solid #bbf7d0;border-radius:12px;padding:20px;margin-bottom:16px;text-align:center;">
+        <h2 style="font-size:1rem;color:#15803d;margin:0 0 8px;">Scan to donate</h2>
+        <p id="qrBankDetails" style="font-size:.82rem;color:#475569;margin:0 0 12px;"></p>
+        <img id="donationQr" alt="VietQR donation code" style="display:block;width:240px;max-width:100%;height:auto;margin:0 auto 12px;">
+        <p style="font-size:.78rem;color:#475569;margin:0 0 5px;">Transfer content</p>
+        <code id="qrTransferInfo" style="font-size:.9rem;font-weight:700;color:#1447c0;"></code>
+        <p id="qrAmount" style="font-size:.9rem;font-weight:700;color:#15803d;margin:8px 0 0;"></p>
+    </div>
+
     <!-- Step 2: Transaction Details -->
-    <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;margin-bottom:16px;">
+    <div style="display:none;background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;margin-bottom:16px;">
         <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:14px 20px;border-bottom:1px solid #5b21b6;display:flex;align-items:center;gap:10px;">
             <div style="width:26px;height:26px;background:rgba(255,255,255,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:white;flex-shrink:0;">2</div>
             <div>
@@ -209,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </label>
                     <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:9px;overflow:hidden;height:44px;" onfocusin="this.style.borderColor='#7c3aed'" onfocusout="this.style.borderColor='#e2e8f0'">
                         <span style="padding:0 11px;color:#94a3b8;border-right:1px solid #f3f4f6;height:100%;display:flex;align-items:center;"><i class="bi bi-hash"></i></span>
-                        <input type="text" name="reference_code" required
+                        <input type="text" name="reference_code"
                                style="flex:1;border:none;outline:none;padding:0 12px;font-size:.83rem;color:#0f172a;background:transparent;height:100%;"
                                placeholder="e.g. VCB2026001"
                                value="<?= htmlspecialchars($_POST['reference_code']??'') ?>">
@@ -220,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:5px;">
                         Transaction Date <span style="color:#ef4444;">*</span>
                     </label>
-                    <input type="datetime-local" name="transaction_date" required
+                    <input type="datetime-local" name="transaction_date"
                            style="width:100%;height:44px;padding:0 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;outline:none;transition:border-color .15s;"
                            onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'"
                            value="<?= htmlspecialchars($_POST['transaction_date']??date('Y-m-d\TH:i')) ?>">
@@ -318,8 +249,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             style="width:100%;padding:14px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border:none;border-radius:12px;font-weight:700;font-size:.92rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 4px 18px rgba(239,68,68,.35);transition:all .2s;letter-spacing:-.01em;"
             onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 24px rgba(239,68,68,.45)'"
             onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 18px rgba(239,68,68,.35)'">
-        <i class="bi bi-heart-fill" style="font-size:.9rem;"></i>
-        Submit Donation for Verification
+        <i class="bi bi-qr-code" style="font-size:.9rem;"></i>
+        Create QR Code / Donate
     </button>
 
 </form>
@@ -353,7 +284,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <i class="bi bi-receipt" style="color:#7c3aed;"></i>Donation Summary
         </div>
         <div id="summaryAmount" style="font-size:1.6rem;font-weight:800;color:#16a34a;letter-spacing:-.03em;margin-bottom:4px;">—</div>
-        <div style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Will be submitted for verification</div>
+        <div style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Scan the QR and transfer to the fund account</div>
         <div style="height:1px;background:#f1f5f9;margin-bottom:12px;"></div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:7px;">
             <span style="color:#64748b;">Campaign</span>
@@ -361,7 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:7px;">
             <span style="color:#64748b;">Channel</span>
-            <span style="font-weight:600;color:#0f172a;" id="summChannel">Not selected</span>
+            <span style="font-weight:600;color:#0f172a;" id="summChannel">Bank Transfer</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;">
             <span style="color:#64748b;">Status after submit</span>
@@ -374,7 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div style="font-size:.78rem;font-weight:700;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:7px;">
             <i class="bi bi-list-check" style="color:#16a34a;"></i>Required fields
         </div>
-        <?php foreach(['Donation amount','Payment channel','Transaction reference code','Transaction date'] as $f): ?>
+        <?php foreach(['Active campaign','Donation amount'] as $f): ?>
         <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:.76rem;color:#475569;">
             <i class="bi bi-check-circle-fill" style="color:#22c55e;font-size:.78rem;"></i><?= $f ?>
         </div>
@@ -433,8 +364,7 @@ function updateSummary() {
     if(amt>0) amtEl.textContent = new Intl.NumberFormat('vi-VN').format(amt)+' VND';
     else amtEl.textContent='—';
 
-    const sel = document.querySelector('input[name=channel]:checked');
-    document.getElementById('summChannel').textContent = sel ? getChannelLabel(sel.value) : 'Not selected';
+    document.getElementById('summChannel').textContent = 'Bank Transfer';
 
     const camp = document.querySelector('select[name=campaign_id]');
     const campText = camp.options[camp.selectedIndex].text;
@@ -444,6 +374,45 @@ function updateSummary() {
 document.getElementById('amountInput').addEventListener('input', updateSummary);
 document.querySelector('select[name=campaign_id]').addEventListener('change', updateSummary);
 updateSummary();
+
+document.getElementById('donateForm').addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalButtonHtml = submitButton.innerHTML;
+    const formData = new FormData(form);
+    const payload = {
+        campaign_id: formData.get('campaign_id'),
+        amount: formData.get('amount'),
+        message: formData.get('message'),
+        is_anonymous: formData.has('is_anonymous'),
+        csrf_token: formData.get('csrf_token')
+    };
+
+    submitButton.disabled = true;
+    submitButton.textContent = 'Creating QR code...';
+    try {
+        const response = await fetch(<?= json_encode(SITE_URL . '/donor/create_donation.php') ?>, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to create the QR code.');
+
+        document.getElementById('donationQr').src = result.qr_url;
+        document.getElementById('qrBankDetails').textContent = `${result.bank_name} · ${result.account_number}`;
+        document.getElementById('qrTransferInfo').textContent = result.transfer_info;
+        document.getElementById('qrAmount').textContent = new Intl.NumberFormat('vi-VN').format(result.amount) + ' VND';
+        document.getElementById('qrPanel').style.display = 'block';
+        document.getElementById('qrPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalButtonHtml;
+    }
+});
 
 // ── Bank selector ──────────────────────────────
 const BANKS = [
