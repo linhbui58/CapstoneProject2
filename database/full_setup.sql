@@ -5,6 +5,7 @@
 
 CREATE DATABASE IF NOT EXISTS vcf_donation CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE vcf_donation;
+SET NAMES utf8mb4;
 
 -- =====================================================
 -- USERS TABLE (All roles)
@@ -165,7 +166,7 @@ INSERT INTO campaigns (title, description, target_amount, raised_amount, start_d
 
 
 -- =====================================================
--- VCF Seed Data â€” Realistic Sample Data
+-- VCF Seed Data — Realistic Sample Data
 -- Run AFTER setup.php or vcf_database.sql
 -- =====================================================
 USE vcf_donation;
@@ -182,7 +183,7 @@ TRUNCATE TABLE donor_profiles;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =====================================================
--- USERS â€” password = 'password' for all
+-- USERS — password = 'password' for all
 -- =====================================================
 DELETE FROM users;
 
@@ -379,14 +380,14 @@ INSERT INTO fund_allocations (campaign_id, amount, purpose, description, allocat
 -- NOTIFICATIONS
 -- =====================================================
 INSERT INTO notifications (user_id, title, message, is_read, type) VALUES
-(4, 'Donation Verified âœ“',    'Your donation of 2,000,000 VND has been verified successfully. Thank you!', 1, 'confirmation'),
-(4, 'Donation Verified âœ“',    'Your donation of 2,000,000 VND to Elderly Care has been verified.', 0, 'confirmation'),
-(5, 'Donation Verified âœ“',    'Your donation of 5,000,000 VND to Rural Schools has been verified.', 1, 'confirmation'),
+(4, 'Donation Verified ✓',    'Your donation of 2,000,000 VND has been verified successfully. Thank you!', 1, 'confirmation'),
+(4, 'Donation Verified ✓',    'Your donation of 2,000,000 VND to Elderly Care has been verified.', 0, 'confirmation'),
+(5, 'Donation Verified ✓',    'Your donation of 5,000,000 VND to Rural Schools has been verified.', 1, 'confirmation'),
 (5, 'New Campaign Available', 'Scholarship for Talented Students campaign is now accepting donations.', 0, 'campaign_update'),
-(6, 'Donation Verified âœ“',    'Your donation of 1,000,000 VND has been verified. Thank you!', 1, 'confirmation'),
-(7, 'Donation Verified âœ“',    'Your donation of 3,000,000 VND has been verified successfully.', 1, 'confirmation'),
-(9, 'Donation Verified âœ“',    'Your donation of 5,000,000 VND to Disaster Relief has been verified.', 1, 'confirmation'),
-(13,'Donation Verified âœ“',    'Corporate donation of 20,000,000 VND to Clean Water Project verified.', 1, 'confirmation'),
+(6, 'Donation Verified ✓',    'Your donation of 1,000,000 VND has been verified. Thank you!', 1, 'confirmation'),
+(7, 'Donation Verified ✓',    'Your donation of 3,000,000 VND has been verified successfully.', 1, 'confirmation'),
+(9, 'Donation Verified ✓',    'Your donation of 5,000,000 VND to Disaster Relief has been verified.', 1, 'confirmation'),
+(13,'Donation Verified ✓',    'Corporate donation of 20,000,000 VND to Clean Water Project verified.', 1, 'confirmation'),
 (2, 'New Transactions Pending','4 new donation transactions are awaiting verification.',               0, 'system'),
 (1, 'Campaign Completed',     'Clean Water Project has reached its fundraising goal of 400,000,000 VND!', 0, 'campaign_update');
 
@@ -406,4 +407,3 @@ SELECT COUNT(*) as Total_Users FROM users;
 SELECT COUNT(*) as Total_Campaigns FROM campaigns;
 SELECT COUNT(*) as Total_Donations FROM donations;
 SELECT COUNT(*) as Pending_Verification FROM transactions WHERE verification_status='pending_verification';
-
