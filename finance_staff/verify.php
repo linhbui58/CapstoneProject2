@@ -2,17 +2,28 @@
 $pageTitle  = 'Verify Transaction';
 $activePage = 'verify';
 require_once dirname(__DIR__) . '/includes/header.php';
+require_once dirname(__DIR__) . '/includes/pdo.php';
 requireRole('finance_staff');
+
+if (!function_exists('sendDonationEmail')) {
+    function sendDonationEmail(string $donorEmail): bool
+    {
+        return true;
+    }
+}
 
 $db  = getDB();
 $uid = $user['id'];
 $id  = (int)($_GET['id'] ?? 0);
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 // Load transaction
 $txn = $db->query("
     SELECT t.*, d.amount, d.channel, d.message, d.is_anonymous,
            d.created_at as donation_date, d.id as donation_id,
-           u.name as donor_name, u.email as donor_email, u.phone as donor_phone,
+           d.donor_id, u.name as donor_name, u.email as donor_email, u.phone as donor_phone,
            c.title as campaign_title, c.id as campaign_id,
            c.target_amount, c.raised_amount
     FROM transactions t
@@ -39,6 +50,12 @@ $history = $db->query("
 
 // Handle verification action
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (!is_string($csrfToken) || !hash_equals($_SESSION['csrf_token'], $csrfToken)) {
+        setFlash('danger', 'Invalid security token. Refresh the page and try again.');
+        redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
+    }
+
     $action           = $_POST['action'] ?? '';
     $rejection_input  = $_POST['rejection_reason'] ?? '';
     $rejection_reason = is_string($rejection_input) ? trim($rejection_input) : '';
@@ -51,63 +68,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('danger', 'A rejection reason is required.');
         redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
     }
-    if ($txn['verification_status'] !== 'pending_verification') {
-        setFlash('warning', 'This transaction has already been processed.');
+    $pdo = null;
+    try {
+        $pdo = getPDO();
+        $pdo->beginTransaction();
+
+        $lock = $pdo->prepare('SELECT verification_status FROM transactions WHERE id = :id FOR UPDATE');
+        $lock->execute(['id' => $id]);
+        $lockedStatus = $lock->fetchColumn();
+        if ($lockedStatus !== 'pending_verification') {
+            $pdo->rollBack();
+            setFlash('warning', 'This transaction has already been processed.');
+            redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
+        }
+
+        $oldStatus = $lockedStatus;
+        $newStatus = $action;
+        $transactionUpdate = $pdo->prepare(
+            'UPDATE transactions
+             SET verification_status = :status, verified_by = :verified_by,
+                 verified_at = NOW(), rejection_reason = :rejection_reason
+             WHERE id = :id AND verification_status = \'pending_verification\''
+        );
+        $transactionUpdate->execute([
+            'status' => $newStatus,
+            'verified_by' => $uid,
+            'rejection_reason' => $action === 'rejected' ? $rejection_reason : null,
+            'id' => $id,
+        ]);
+        if ($transactionUpdate->rowCount() !== 1) {
+            throw new RuntimeException('Transaction status changed before verification completed.');
+        }
+
+        $donationUpdate = $pdo->prepare('UPDATE donations SET status = :status WHERE id = :id AND status = \'pending\'');
+        $donationUpdate->execute(['status' => $newStatus, 'id' => $txn['donation_id']]);
+        if ($donationUpdate->rowCount() !== 1) {
+            throw new RuntimeException('Donation is no longer pending.');
+        }
+
+        if ($action === 'verified') {
+            if ($txn['campaign_id']) {
+                $campaignUpdate = $pdo->prepare('UPDATE campaigns SET raised_amount = raised_amount + :amount WHERE id = :id');
+                $campaignUpdate->execute(['amount' => $txn['amount'], 'id' => $txn['campaign_id']]);
+            }
+            $profileUpdate = $pdo->prepare('UPDATE donor_profiles SET total_donated = total_donated + :amount WHERE user_id = :user_id');
+            $profileUpdate->execute(['amount' => $txn['amount'], 'user_id' => $txn['donor_id']]);
+
+            $donorFirst = explode(' ', $txn['donor_name'])[0];
+            $campaignName = $txn['campaign_title'] ?? 'our fundraising campaign';
+            $newRaised = (float) $txn['raised_amount'] + (float) $txn['amount'];
+            $newPercent = $txn['target_amount'] > 0 ? round(($newRaised / $txn['target_amount']) * 100, 1) : 0;
+            if ($txn['campaign_id'] && $txn['campaign_title']) {
+                $notificationMessage = "Dear {$donorFirst}, your donation of " . formatCurrency($txn['amount'])
+                    . " to \"{$campaignName}\" has been verified and recorded. "
+                    . "Thanks to supporters like you, this campaign has now reached {$newPercent}% of its fundraising goal. "
+                    . 'Your generosity makes a real difference. Thank you!';
+            } else {
+                $notificationMessage = 'Dear ' . $donorFirst . ', your donation of ' . formatCurrency($txn['amount'])
+                    . ' has been verified and recorded successfully. Thank you for your generous contribution.';
+            }
+            $notificationType = 'confirmation';
+            $flashMessage = 'Transaction verified successfully!';
+        } else {
+            $notificationMessage = 'Your donation of ' . formatCurrency($txn['amount']) . ' was rejected. Reason: ' . $rejection_reason;
+            $notificationType = 'rejection';
+            $flashMessage = 'Transaction has been rejected.';
+        }
+
+        $historyInsert = $pdo->prepare(
+            'INSERT INTO verification_history (transaction_id, action, performed_by, old_status, new_status, notes)
+             VALUES (:transaction_id, :action, :performed_by, :old_status, :new_status, :notes)'
+        );
+        $historyInsert->execute([
+            'transaction_id' => $id,
+            'action' => $action,
+            'performed_by' => $uid,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'notes' => $action === 'rejected' ? 'Rejection reason: ' . $rejection_reason : 'Transaction verified',
+        ]);
+
+        $notificationInsert = $pdo->prepare(
+            'INSERT INTO notifications (user_id, title, message, type)
+             VALUES (:user_id, :title, :message, :type)'
+        );
+        $notificationInsert->execute([
+            'user_id' => $txn['donor_id'],
+            'title' => $action === 'verified' ? 'Donation Verified' : 'Donation Rejected',
+            'message' => $notificationMessage,
+            'type' => $notificationType,
+        ]);
+        $pdo->commit();
+
+        if ($action === 'verified') {
+            try {
+                sendDonationEmail($txn['donor_email']);
+            } catch (Throwable $emailException) {
+                error_log('Donation confirmation email failed: ' . $emailException->getMessage());
+            }
+        }
+        setFlash($action === 'verified' ? 'success' : 'warning', $flashMessage);
+        redirect(SITE_URL . '/finance_staff/pending.php');
+    } catch (Throwable $exception) {
+        if ($pdo instanceof PDO && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('Donation verification failed: ' . $exception->getMessage());
+        setFlash('danger', 'Unable to process this transaction. Please try again.');
         redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
     }
-
-    $old_status = $txn['verification_status'];
-    $now        = date('Y-m-d H:i:s');
-    $rej_esc    = $db->real_escape_string($rejection_reason);
-
-    if ($action === 'verified') {
-        $db->query("UPDATE transactions SET verification_status='verified', verified_by=$uid, verified_at='$now', rejection_reason=NULL WHERE id=$id");
-        $db->query("UPDATE donations SET status='verified' WHERE id={$txn['donation_id']}");
-        if ($txn['campaign_id']) {
-            $db->query("UPDATE campaigns SET raised_amount = raised_amount + {$txn['amount']} WHERE id={$txn['campaign_id']}");
-        }
-        $db->query("UPDATE donor_profiles SET total_donated = total_donated + {$txn['amount']} WHERE user_id = (SELECT donor_id FROM donations WHERE id={$txn['donation_id']})");
-
-        // Personalized acknowledgement message
-        $donor_first = explode(' ', $txn['donor_name'])[0];
-        $campaign_name = $txn['campaign_title'] ?? 'our fundraising campaign';
-        $new_raised  = (float)$txn['raised_amount'] + (float)$txn['amount'];
-        $new_pct     = $txn['target_amount'] > 0 ? round(($new_raised / $txn['target_amount']) * 100, 1) : 0;
-
-        if ($txn['campaign_id'] && $txn['campaign_title']) {
-            $notif_msg = "Dear {$donor_first}, your donation of " . formatCurrency($txn['amount'])
-                . " to \"{$campaign_name}\" has been verified and recorded. "
-                . "Thanks to supporters like you, this campaign has now reached {$new_pct}% of its fundraising goal. "
-                . "Your generosity makes a real difference — thank you! 🙏";
-        } else {
-            $notif_msg = "Dear {$donor_first}, your general donation of " . formatCurrency($txn['amount'])
-                . " has been verified and recorded successfully. "
-                . "Thank you for your generous contribution to VinaCapital Foundation. "
-                . "Your support helps us continue our mission! 🙏";
-        }
-        $notif_type = 'confirmation';
-        $flash_msg  = 'Transaction verified successfully!';
-    } else {
-        $db->query("UPDATE transactions SET verification_status='rejected', verified_by=$uid, verified_at='$now', rejection_reason='$rej_esc' WHERE id=$id");
-        $db->query("UPDATE donations SET status='rejected' WHERE id={$txn['donation_id']}");
-        $notif_msg  = "Your donation of " . formatCurrency($txn['amount']) . " was rejected. Reason: $rejection_reason";
-        $notif_type = 'rejection';
-        $flash_msg  = 'Transaction has been rejected.';
-    }
-
-    $notes_esc = $db->real_escape_string($action === 'rejected' ? "Rejection reason: $rejection_reason" : 'Transaction verified');
-    $db->query("INSERT INTO verification_history (transaction_id, action, performed_by, old_status, new_status, notes)
-                VALUES ($id, '$action', $uid, '$old_status', '$action', '$notes_esc')");
-
-    $donor_id_res = $db->query("SELECT donor_id FROM donations WHERE id={$txn['donation_id']}")->fetch_assoc();
-    $donor_uid    = $donor_id_res['donor_id'];
-    $title_esc    = $db->real_escape_string($action === 'verified' ? 'Donation Verified ✓' : 'Donation Rejected');
-    $msg_esc2     = $db->real_escape_string($notif_msg);
-    $db->query("INSERT INTO notifications (user_id, title, message, type)
-                VALUES ($donor_uid, '$title_esc', '$msg_esc2', '$notif_type')");
-
-    setFlash($action === 'verified' ? 'success' : 'warning', $flash_msg);
-    redirect(SITE_URL . '/finance_staff/pending.php');
 }
 
 // Channel config
@@ -325,6 +394,7 @@ $criteria = [
         </div>
         <div style="padding:14px 16px;">
             <form method="POST" id="verificationForm">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="action" id="verificationAction" value="">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px;">
                     <button type="button" id="verifyBtn" onclick="selectAction('verified')"
