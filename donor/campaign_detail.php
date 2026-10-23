@@ -181,9 +181,11 @@ $msg_count   = $messages    ? $messages->num_rows    : 0;
     <!-- ── TAB: About ──────────────────────── -->
     <div id="tab-about" class="cd-panel show">
         <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.04);">
+            <!-- Description -->
             <p style="font-size:.87rem;color:#374151;line-height:1.8;margin:0 0 22px;"><?= nl2br(htmlspecialchars($campaign['description'])) ?></p>
+
             <!-- Meta cards -->
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-top:18px;border-top:1px solid #f1f5f9;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-top:18px;border-top:1px solid #f1f5f9;margin-bottom:22px;">
                 <?php foreach([
                     ['bi-person-badge-fill','#eff6ff','#1447c0','Organized by',htmlspecialchars($campaign['created_by_name'])],
                     ['bi-calendar2-event-fill','#f0fdf4','#15803d','Start Date',formatDate($campaign['start_date'])],
@@ -198,6 +200,66 @@ $msg_count   = $messages    ? $messages->num_rows    : 0;
                 </div>
                 <?php endforeach; ?>
             </div>
+
+            <!-- Campaign stats strip -->
+            <div style="border-top:1px solid #f1f5f9;padding-top:18px;">
+                <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:14px;">Campaign Statistics</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">
+                    <?php
+                    $total_all_donations = (int)$db->query("SELECT COUNT(*) c FROM donations WHERE campaign_id=$id")->fetch_assoc()['c'];
+                    $pending_donations   = (int)$db->query("SELECT COUNT(*) c FROM donations WHERE campaign_id=$id AND status='pending'")->fetch_assoc()['c'];
+                    $remaining = max(0, $campaign['target_amount'] - $campaign['raised_amount']);
+                    foreach([
+                        ['bi-receipt','#f1f5f9','#475569','Total Donations', $total_all_donations . ' submitted'],
+                        ['bi-check-circle-fill','#dcfce7','#15803d','Verified', $total_donors . ' donors · ' . number_format($total_donated/1000000,1) . 'M VND'],
+                        ['bi-bullseye','#ede9fe','#7c3aed','Still Needed', formatCurrency($remaining)],
+                    ] as [$ic,$bg,$co,$lbl,$val]): ?>
+                    <div style="background:<?= $bg ?>;border-radius:11px;padding:13px;">
+                        <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px;">
+                            <i class="bi <?= $ic ?>" style="color:<?= $co ?>;font-size:.8rem;"></i>
+                            <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:<?= $co ?>;"><?= $lbl ?></span>
+                        </div>
+                        <div style="font-size:.8rem;font-weight:700;color:#0f172a;line-height:1.4;"><?= $val ?></div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- Progress visualisation -->
+                <div style="background:#f8fafc;border-radius:12px;padding:16px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                        <span style="font-size:.78rem;font-weight:700;color:#0f172a;">Fundraising Goal Progress</span>
+                        <span style="font-size:.8rem;font-weight:800;color:<?= $pct>=100?'#15803d':'#1447c0' ?>;"><?= $pct ?>%</span>
+                    </div>
+                    <div style="height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden;margin-bottom:8px;">
+                        <div style="height:100%;width:<?= $pct ?>%;background:<?= $pct>=100?'linear-gradient(90deg,#22c55e,#16a34a)':'linear-gradient(90deg,#60a5fa,#1447c0)' ?>;border-radius:5px;transition:width .8s;"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:.74rem;color:#64748b;">
+                        <span><strong style="color:#1447c0;"><?= number_format($campaign['raised_amount']/1000000,1) ?>M VND</strong> raised</span>
+                        <span>Goal: <strong style="color:#475569;"><?= number_format($campaign['target_amount']/1000000,0) ?>M VND</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <?php if ($campaign['status']==='active'): ?>
+            <!-- CTA inside About tab -->
+            <div style="margin-top:18px;padding-top:18px;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                <div style="font-size:.82rem;color:#475569;">
+                    <?php if ($campaign['days_left'] > 0): ?>
+                    <i class="bi bi-clock-fill" style="color:#d97706;"></i>
+                    <strong style="color:#d97706;"><?= $campaign['days_left'] ?> days</strong> remaining to reach the goal
+                    <?php else: ?>
+                    <i class="bi bi-x-circle-fill" style="color:#ef4444;"></i> Campaign has ended
+                    <?php endif; ?>
+                </div>
+                <a href="<?= SITE_URL ?>/donor/donate.php?campaign_id=<?= $id ?>"
+                   style="display:inline-flex;align-items:center;gap:7px;padding:10px 22px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border-radius:10px;font-size:.84rem;font-weight:700;text-decoration:none;box-shadow:0 3px 12px rgba(239,68,68,.3);transition:all .18s;"
+                   onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 5px 18px rgba(239,68,68,.4)'"
+                   onmouseout="this.style.transform='none';this.style.boxShadow='0 3px 12px rgba(239,68,68,.3)'">
+                    <i class="bi bi-heart-fill" style="font-size:.82rem;"></i>
+                    <?= $my_donations > 0 ? 'Donate Again' : 'Donate Now' ?>
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
