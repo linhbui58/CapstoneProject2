@@ -8,12 +8,12 @@ function getPDO(): PDO
         return $pdo;
     }
 
-    $host     = getenv('DB_HOST')     ?: (defined('DB_HOST') ? DB_HOST : '');
-    $database = getenv('DB_NAME')     ?: (defined('DB_NAME') ? DB_NAME : '');
-    $username = getenv('DB_USER')     ?: (defined('DB_USER') ? DB_USER : '');
-    $password = getenv('DB_PASSWORD') ?: (defined('DB_PASS') ? DB_PASS : '');
+    $host = getenv('DB_HOST');
+    $database = getenv('DB_NAME');
+    $username = getenv('DB_USER');
+    $password = getenv('DB_PASSWORD');
 
-    if ($host === '' || $database === '' || $username === false) {
+    if (!$host || !$database || $username === false || $password === false) {
         throw new RuntimeException('Database environment variables are not configured.');
     }
 

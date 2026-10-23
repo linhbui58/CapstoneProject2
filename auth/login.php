@@ -527,7 +527,7 @@ body {
             <button class="demo-btn demo-camp" onclick="fill('campaign@vcf.org')">
                 <i class="bi bi-megaphone-fill"></i> Campaign Staff
             </button>
-            <button class="demo-btn demo-don"  onclick="fill('donor1@gmail.com')">
+            <button class="demo-btn demo-don"  onclick="fill('donor@vcf.org')">
                 <i class="bi bi-heart-fill"></i> Donor
             </button>
         </div>
