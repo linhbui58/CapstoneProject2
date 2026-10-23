@@ -7,6 +7,15 @@ assets/images/campaigns/*.png
 assets/images/campaigns/*.webp
 assets/images/campaigns/*.gif
 
+# User-uploaded evidence & update images (not tracked in git)
+assets/uploads/evidence/*
+assets/uploads/updates/*
+assets/uploads/disbursement/*
+# Keep the .htaccess security files
+!assets/uploads/evidence/.htaccess
+!assets/uploads/updates/.htaccess
+!assets/uploads/disbursement/.htaccess
+
 # XAMPP / system files
 *.log
 .DS_Store

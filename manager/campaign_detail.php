@@ -255,7 +255,7 @@ $alloc_styles = [
             <table style="width:100%;border-collapse:collapse;">
                 <thead style="position:sticky;top:0;z-index:1;">
                     <tr style="background:#f8fafc;">
-                        <?php foreach(['Purpose','Amount','Date','Status'] as $h): ?>
+                        <?php foreach(['Purpose','Amount','Date','Status','Evidence'] as $h): ?>
                         <th style="padding:9px 14px;text-align:left;font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;border-bottom:1px solid #f1f5f9;white-space:nowrap;"><?= $h ?></th>
                         <?php endforeach; ?>
                     </tr>
@@ -264,6 +264,8 @@ $alloc_styles = [
                 <?php if($allocations && $allocations->num_rows > 0):
                     while($a = $allocations->fetch_assoc()):
                         $as = $alloc_styles[$a['status']] ?? $alloc_styles['planned'];
+                        $hasEv = !empty($a['evidence_url']);
+                        $isPdf = $hasEv && strtolower(pathinfo($a['evidence_url'], PATHINFO_EXTENSION)) === 'pdf';
                 ?>
                 <tr style="border-bottom:1px solid #f9fafb;" onmouseover="this.style.background='#fafbff'" onmouseout="this.style.background='white'">
                     <td style="padding:10px 14px;min-width:120px;">
@@ -282,9 +284,36 @@ $alloc_styles = [
                             <?= ucfirst($a['status']) ?>
                         </span>
                     </td>
+                    <td style="padding:10px 14px;min-width:100px;">
+                        <?php if ($hasEv): ?>
+                            <?php if ($isPdf): ?>
+                            <a href="<?= SITE_URL . '/' . htmlspecialchars($a['evidence_url']) ?>" target="_blank"
+                               style="display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:4px 10px;border-radius:7px;font-size:.69rem;font-weight:700;text-decoration:none;">
+                                <i class="bi bi-file-pdf-fill"></i>PDF
+                            </a>
+                            <?php else: ?>
+                            <a href="<?= SITE_URL . '/' . htmlspecialchars($a['evidence_url']) ?>" target="_blank">
+                                <img src="<?= SITE_URL . '/' . htmlspecialchars($a['evidence_url']) ?>"
+                                     style="width:48px;height:36px;object-fit:cover;border-radius:6px;border:1.5px solid #e2e8f0;cursor:zoom-in;"
+                                     title="<?= htmlspecialchars($a['evidence_note'] ?? '') ?>"
+                                     alt="Evidence">
+                            </a>
+                            <?php endif; ?>
+                            <?php if ($a['evidence_note']): ?>
+                            <div style="font-size:.65rem;color:#94a3b8;margin-top:2px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                 title="<?= htmlspecialchars($a['evidence_note']) ?>">
+                                <?= htmlspecialchars($a['evidence_note']) ?>
+                            </div>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <span style="font-size:.69rem;color:#cbd5e1;display:flex;align-items:center;gap:3px;">
+                                <i class="bi bi-dash-circle"></i>None
+                            </span>
+                        <?php endif; ?>
+                    </td>
                 </tr>
                 <?php endwhile; else: ?>
-                <tr><td colspan="4" style="padding:32px;text-align:center;color:#94a3b8;font-size:.79rem;">No allocations recorded</td></tr>
+                <tr><td colspan="5" style="padding:32px;text-align:center;color:#94a3b8;font-size:.79rem;">No allocations recorded</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>

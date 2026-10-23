@@ -143,17 +143,22 @@ $status_styles = array(
             </div>
 
             <!-- Actions -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:auto;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:auto;">
                 <a href="<?= SITE_URL ?>/campaign_staff/edit_campaign.php?id=<?= $c['id'] ?>"
-                   style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.76rem;font-weight:600;color:#475569;text-decoration:none;transition:all .15s;"
+                   style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.74rem;font-weight:600;color:#475569;text-decoration:none;transition:all .15s;"
                    onmouseover="this.style.background='#f8fafc';this.style.borderColor='#1447c0';this.style.color='#1447c0'"
                    onmouseout="this.style.background='white';this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-                    <i class="bi bi-pencil-fill" style="font-size:.74rem;"></i>Edit
+                    <i class="bi bi-pencil-fill" style="font-size:.72rem;"></i>Edit
                 </a>
                 <a href="<?= SITE_URL ?>/campaign_staff/fund_allocation.php?campaign_id=<?= $c['id'] ?>"
-                   style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;font-size:.76rem;font-weight:700;color:#15803d;text-decoration:none;transition:all .15s;"
+                   style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;font-size:.74rem;font-weight:700;color:#15803d;text-decoration:none;transition:all .15s;"
                    onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
-                    <i class="bi bi-pie-chart-fill" style="font-size:.74rem;"></i>Funds
+                    <i class="bi bi-pie-chart-fill" style="font-size:.72rem;"></i>Funds
+                </a>
+                <a href="<?= SITE_URL ?>/campaign_staff/campaign_updates.php?campaign_id=<?= $c['id'] ?>"
+                   style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:8px;font-size:.74rem;font-weight:700;color:#7c3aed;text-decoration:none;transition:all .15s;"
+                   onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#faf5ff'">
+                    <i class="bi bi-broadcast" style="font-size:.72rem;"></i>Updates
                 </a>
             </div>
         </div>

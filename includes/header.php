@@ -31,17 +31,20 @@ if ($role === 'donor') {
 } elseif ($role === 'campaign_staff') {
     $navItems = [
         'dashboard'      =>['label'=>'Dashboard',      'icon'=>'bi-grid-fill',       'url'=>SITE_URL.'/campaign_staff/dashboard.php'],
-        'campaigns'      =>['label'=>'Campaigns',      'icon'=>'bi-megaphone-fill',  'url'=>SITE_URL.'/campaign_staff/campaigns.php'],
-        'create_campaign'=>['label'=>'New Campaign',   'icon'=>'bi-plus-circle-fill','url'=>SITE_URL.'/campaign_staff/create_campaign.php'],
-        'link_donations' =>['label'=>'Link Donations', 'icon'=>'bi-link-45deg',      'url'=>SITE_URL.'/campaign_staff/link_donations.php'],
-        'fund_allocation'=>['label'=>'Fund Allocation','icon'=>'bi-pie-chart-fill',  'url'=>SITE_URL.'/campaign_staff/fund_allocation.php'],
-        'notifications'  =>['label'=>'Notifications',  'icon'=>'bi-bell-fill',       'url'=>SITE_URL.'/campaign_staff/notifications.php'],
+        'campaigns'      =>['label'=>'Campaigns',           'icon'=>'bi-megaphone-fill',  'url'=>SITE_URL.'/campaign_staff/campaigns.php'],
+        'create_campaign'=>['label'=>'New Campaign',        'icon'=>'bi-plus-circle-fill','url'=>SITE_URL.'/campaign_staff/create_campaign.php'],
+        'link_donations' =>['label'=>'Link Donations',      'icon'=>'bi-link-45deg',      'url'=>SITE_URL.'/campaign_staff/link_donations.php'],
+        'fund_allocation'=>['label'=>'Fund Allocation',     'icon'=>'bi-pie-chart-fill',  'url'=>SITE_URL.'/campaign_staff/fund_allocation.php'],
+        'disbursement_requests'=>['label'=>'Disbursement',  'icon'=>'bi-send-fill',       'url'=>SITE_URL.'/campaign_staff/disbursement_requests.php'],
+        'campaign_updates'     =>['label'=>'Post Updates',  'icon'=>'bi-broadcast',       'url'=>SITE_URL.'/campaign_staff/campaign_updates.php'],
+        'notifications'  =>['label'=>'Notifications',       'icon'=>'bi-bell-fill',       'url'=>SITE_URL.'/campaign_staff/notifications.php'],
     ];
 } elseif ($role === 'manager') {
     $navItems = [
         'dashboard'    =>['label'=>'Dashboard',      'icon'=>'bi-grid-fill',           'url'=>SITE_URL.'/manager/dashboard.php'],
         'campaigns'    =>['label'=>'All Campaigns',  'icon'=>'bi-megaphone-fill',      'url'=>SITE_URL.'/manager/campaigns.php'],
         'donations'    =>['label'=>'All Donations',  'icon'=>'bi-cash-stack',          'url'=>SITE_URL.'/manager/donations.php'],
+        'disbursement' =>['label'=>'Disbursements',  'icon'=>'bi-send-fill',           'url'=>SITE_URL.'/manager/disbursement_requests.php'],
         'reports'      =>['label'=>'Reports',         'icon'=>'bi-bar-chart-line-fill', 'url'=>SITE_URL.'/manager/reports.php'],
         'segmentation' =>['label'=>'Donor Segments',  'icon'=>'bi-diagram-3-fill',      'url'=>SITE_URL.'/manager/donor_segmentation.php'],
         'prediction'   =>['label'=>'Predictions',     'icon'=>'bi-graph-up-arrow',      'url'=>SITE_URL.'/manager/campaign_prediction.php'],
