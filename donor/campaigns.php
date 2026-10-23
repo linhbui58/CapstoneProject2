@@ -9,7 +9,7 @@ $db = getDB();
 $campaigns = $db->query("
     SELECT c.*, u.name as created_by_name,
            DATEDIFF(c.end_date, CURDATE()) as days_left,
-           COUNT(d.id) as donor_count
+           COUNT(DISTINCT d.donor_id) as donor_count
     FROM campaigns c
     JOIN users u ON c.created_by = u.id
     LEFT JOIN donations d ON d.campaign_id = c.id AND d.status = 'verified'
@@ -71,6 +71,10 @@ $campaigns = $db->query("
                             </div>
                         </div>
                         <div class="d-flex gap-2 mt-auto">
+                            <a href="<?= SITE_URL ?>/donor/campaign_detail.php?id=<?= $c['id'] ?>"
+                               class="btn btn-outline-primary flex-grow-1">
+                                <i class="bi bi-eye me-1"></i>View
+                            </a>
                             <a href="<?= SITE_URL ?>/donor/donate.php?campaign_id=<?= $c['id'] ?>"
                                class="btn btn-vcf flex-grow-1">
                                 <i class="bi bi-heart me-1"></i>Donate

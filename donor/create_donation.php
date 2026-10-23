@@ -48,10 +48,12 @@ if (mb_strlen($message) > 5000) {
 }
 
 $amount = (int) $amountInput;
-$bankId = strtoupper(trim((string) getenv('VIETQR_BANK_ID')));
-$accountNumber = trim((string) getenv('VIETQR_ACCOUNT_NO'));
-$accountName = trim((string) getenv('VIETQR_ACCOUNT_NAME'));
-$bankName = trim((string) (getenv('VIETQR_BANK_NAME') ?: $bankId));
+
+// Read VietQR config — prefer environment variables (production), fall back to constants (XAMPP/local)
+$bankId       = strtoupper(trim((string) (getenv('VIETQR_BANK_ID')      ?: (defined('VIETQR_BANK_ID')      ? VIETQR_BANK_ID      : ''))));
+$accountNumber= trim((string)           (getenv('VIETQR_ACCOUNT_NO')    ?: (defined('VIETQR_ACCOUNT_NO')    ? VIETQR_ACCOUNT_NO    : '')));
+$accountName  = trim((string)           (getenv('VIETQR_ACCOUNT_NAME')  ?: (defined('VIETQR_ACCOUNT_NAME')  ? VIETQR_ACCOUNT_NAME  : '')));
+$bankName     = trim((string)           (getenv('VIETQR_BANK_NAME')     ?: (defined('VIETQR_BANK_NAME')     ? VIETQR_BANK_NAME     : $bankId)));
 
 if (!preg_match('/^[A-Z0-9]{2,20}$/', $bankId) || !preg_match('/^[0-9]{6,30}$/', $accountNumber)) {
     respond(503, ['error' => 'The fund bank account is not configured for VietQR.']);
