@@ -157,87 +157,137 @@ $approved_count= (int)$db->query("SELECT COUNT(*) as c FROM disbursement_request
 </div>
 <?php endif; ?>
 
-<div style="display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start;">
+<div style="display:grid;grid-template-columns:420px 1fr;gap:22px;align-items:start;">
 
 <!-- ═══ LEFT: CREATE FORM ═══════════════════════ -->
 <div style="position:sticky;top:80px;">
     <form method="POST"
-          style="background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+          style="background:white;border:1px solid #e2e8f0;border-radius:18px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.07);">
         <input type="hidden" name="action" value="create">
-        <div style="background:linear-gradient(135deg,#1447c0,#0d2157);padding:14px 20px;display:flex;align-items:center;gap:9px;">
-            <i class="bi bi-plus-circle-fill" style="color:white;font-size:.88rem;"></i>
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#1447c0,#0d2157);padding:18px 22px;display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;background:rgba(255,255,255,.15);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="bi bi-send-fill" style="color:white;font-size:1rem;"></i>
+            </div>
             <div>
-                <div style="font-size:.85rem;font-weight:700;color:white;">New Disbursement Request</div>
-                <div style="font-size:.71rem;color:rgba(255,255,255,.65);">Manager will review and approve</div>
+                <div style="font-size:.92rem;font-weight:700;color:white;">New Disbursement Request</div>
+                <div style="font-size:.74rem;color:rgba(255,255,255,.6);margin-top:1px;">Manager will review and approve</div>
             </div>
         </div>
-        <div style="padding:18px;">
-            <!-- Campaign -->
-            <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:4px;">Campaign <span style="color:#ef4444;">*</span></label>
+
+        <div style="padding:22px;">
+            <!-- Campaign (full width) -->
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-size:.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">
+                    <i class="bi bi-megaphone-fill" style="color:#1447c0;font-size:.72rem;"></i> Campaign <span style="color:#ef4444;">*</span>
+                </label>
                 <select name="campaign_id"
-                        style="width:100%;height:40px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;background:white;outline:none;cursor:pointer;"
-                        onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'">
+                        style="width:100%;height:42px;padding:0 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.84rem;color:#0f172a;background:white;outline:none;cursor:pointer;transition:all .15s;"
+                        onfocus="this.style.borderColor='#1447c0';this.style.boxShadow='0 0 0 3px rgba(20,71,192,.08)'"
+                        onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
                     <option value="">Select campaign...</option>
                     <?php if ($campaigns): $campaigns->data_seek(0); while ($c = $campaigns->fetch_assoc()): ?>
                     <option value="<?= $c['id'] ?>" <?= ($filter_campaign == $c['id'] || ($_POST['campaign_id'] ?? 0) == $c['id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars(mb_strimwidth($c['title'], 0, 30, '…')) ?> (<?= number_format($c['raised_amount']/1000000,1) ?>M)
+                        <?= htmlspecialchars(mb_strimwidth($c['title'], 0, 38, '…')) ?> (<?= number_format($c['raised_amount']/1000000,1) ?>M VND)
                     </option>
                     <?php endwhile; endif; ?>
                 </select>
             </div>
-            <!-- Title -->
-            <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:4px;">Request Title <span style="color:#ef4444;">*</span></label>
-                <input type="text" name="title"
-                       style="width:100%;height:40px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;outline:none;"
-                       onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'"
-                       placeholder="e.g. Medical supplies batch 1"
-                       value="<?= htmlspecialchars($_POST['title'] ?? '') ?>">
+
+            <!-- Title + Amount side by side -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;">
+                <div>
+                    <label style="display:block;font-size:.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">
+                        Request Title <span style="color:#ef4444;">*</span>
+                    </label>
+                    <input type="text" name="title"
+                           style="width:100%;height:42px;padding:0 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.84rem;color:#0f172a;outline:none;transition:all .15s;"
+                           onfocus="this.style.borderColor='#1447c0';this.style.boxShadow='0 0 0 3px rgba(20,71,192,.08)'"
+                           onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
+                           placeholder="e.g. Medical supplies batch 1"
+                           value="<?= htmlspecialchars($_POST['title'] ?? '') ?>">
+                </div>
+                <div>
+                    <label style="display:block;font-size:.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">
+                        Amount (VND) <span style="color:#ef4444;">*</span>
+                    </label>
+                    <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;height:42px;transition:all .15s;"
+                         onfocusin="this.style.borderColor='#1447c0';this.style.boxShadow='0 0 0 3px rgba(20,71,192,.08)'"
+                         onfocusout="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+                        <span style="padding:0 11px;background:#f8fafc;border-right:1px solid #e2e8f0;color:#94a3b8;font-size:.76rem;font-weight:700;height:100%;display:flex;align-items:center;">VND</span>
+                        <input type="number" name="amount" min="1"
+                               style="flex:1;border:none;outline:none;padding:0 12px;font-size:.84rem;font-weight:700;color:#0f172a;background:white;height:100%;"
+                               placeholder="0"
+                               value="<?= htmlspecialchars($_POST['amount'] ?? '') ?>">
+                    </div>
+                </div>
             </div>
-            <!-- Beneficiary -->
-            <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:4px;">
-                    Beneficiary (Đơn vị thụ hưởng) <span style="color:#ef4444;">*</span>
+
+            <!-- Beneficiary (full width) -->
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-size:.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">
+                    <i class="bi bi-building" style="color:#1447c0;font-size:.72rem;"></i> Beneficiary (Đơn vị thụ hưởng) <span style="color:#ef4444;">*</span>
                 </label>
                 <input type="text" name="beneficiary"
-                       style="width:100%;height:40px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;outline:none;"
-                       onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'"
+                       style="width:100%;height:42px;padding:0 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.84rem;color:#0f172a;outline:none;transition:all .15s;"
+                       onfocus="this.style.borderColor='#1447c0';this.style.boxShadow='0 0 0 3px rgba(20,71,192,.08)'"
+                       onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
                        placeholder="e.g. Children Hospital No.2"
                        value="<?= htmlspecialchars($_POST['beneficiary'] ?? '') ?>">
             </div>
-            <!-- Amount -->
-            <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:4px;">Amount (VND) <span style="color:#ef4444;">*</span></label>
-                <input type="number" name="amount" min="1"
-                       style="width:100%;height:40px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;outline:none;"
-                       onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'"
-                       placeholder="0"
-                       value="<?= htmlspecialchars($_POST['amount'] ?? '') ?>">
-            </div>
+
             <!-- Purpose -->
-            <div style="margin-bottom:12px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:4px;">Purpose <span style="color:#ef4444;">*</span></label>
-                <textarea name="purpose" rows="2"
-                          style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.81rem;color:#0f172a;outline:none;resize:none;"
-                          onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'"
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-size:.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">
+                    Purpose <span style="color:#ef4444;">*</span>
+                </label>
+                <textarea name="purpose" rows="3"
+                          style="width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.83rem;color:#0f172a;outline:none;resize:none;line-height:1.55;transition:all .15s;"
+                          onfocus="this.style.borderColor='#1447c0';this.style.boxShadow='0 0 0 3px rgba(20,71,192,.08)'"
+                          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
                           placeholder="Describe what this fund will be used for..."><?= htmlspecialchars($_POST['purpose'] ?? '') ?></textarea>
             </div>
+
             <!-- Justification -->
-            <div style="margin-bottom:14px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:4px;">Justification (Lý do đề xuất)</label>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;font-size:.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">
+                    Justification (Lý do đề xuất)
+                </label>
                 <textarea name="justification" rows="2"
-                          style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.81rem;color:#0f172a;outline:none;resize:none;"
-                          onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'"
+                          style="width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.83rem;color:#0f172a;outline:none;resize:none;line-height:1.55;transition:all .15s;"
+                          onfocus="this.style.borderColor='#1447c0';this.style.boxShadow='0 0 0 3px rgba(20,71,192,.08)'"
+                          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
                           placeholder="Why is this disbursement necessary now?"><?= htmlspecialchars($_POST['justification'] ?? '') ?></textarea>
             </div>
+
             <button type="submit"
-                    style="width:100%;padding:11px;background:linear-gradient(135deg,#1447c0,#0d2157);color:white;border:none;border-radius:10px;font-weight:700;font-size:.86rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 3px 12px rgba(20,71,192,.3);transition:all .18s;"
-                    onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
-                <i class="bi bi-send-fill"></i>Submit Request
+                    style="width:100%;padding:13px;background:linear-gradient(135deg,#1447c0,#0d2157);color:white;border:none;border-radius:11px;font-weight:700;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(20,71,192,.3);transition:all .2s;letter-spacing:-.01em;"
+                    onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 22px rgba(20,71,192,.4)'"
+                    onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 16px rgba(20,71,192,.3)'">
+                <i class="bi bi-send-fill" style="font-size:.88rem;"></i>Submit Request to Manager
             </button>
         </div>
     </form>
+
+    <!-- Info card -->
+    <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:14px;padding:16px 18px;margin-top:2px;">
+        <div style="font-size:.76rem;font-weight:700;color:#1447c0;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            <i class="bi bi-info-circle-fill"></i>Request Workflow
+        </div>
+        <?php foreach([
+            ['bi-send-fill',          '#dcfce7','#15803d', 'You submit → Manager reviews'],
+            ['bi-check-circle-fill',  '#ede9fe','#7c3aed', 'Approved → Upload receipt evidence'],
+            ['bi-bank2',              '#fef9c3','#d97706', 'Disbursed → Fund allocation recorded'],
+            ['bi-eye-fill',           '#dbeafe','#1447c0', 'Donors see evidence on campaign page'],
+        ] as [$ic,$bg,$co,$txt]): ?>
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px;">
+            <div style="width:26px;height:26px;background:<?= $bg ?>;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="bi <?= $ic ?>" style="color:<?= $co ?>;font-size:.72rem;"></i>
+            </div>
+            <span style="font-size:.74rem;color:#374151;line-height:1.4;"><?= $txt ?></span>
+        </div>
+        <?php endforeach; ?>
+    </div>
 </div>
 
 <!-- ═══ RIGHT: REQUESTS LIST ════════════════════ -->

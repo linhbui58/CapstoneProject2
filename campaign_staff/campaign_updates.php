@@ -124,22 +124,23 @@ $updates = $db->query("
     <form method="POST" enctype="multipart/form-data"
           style="background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);">
         <input type="hidden" name="action" value="create">
-        <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:14px 20px;display:flex;align-items:center;gap:9px;">
-            <i class="bi bi-plus-circle-fill" style="color:white;font-size:.88rem;"></i>
+        <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:16px 20px;display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="bi bi-broadcast" style="color:white;font-size:.9rem;"></i>
+            </div>
             <div>
-                <div style="font-size:.85rem;font-weight:700;color:white;">Post New Update</div>
-                <div style="font-size:.71rem;color:rgba(255,255,255,.65);">Donors will receive a notification</div>
+                <div style="font-size:.88rem;font-weight:700;color:white;">Post New Update</div>
+                <div style="font-size:.72rem;color:rgba(255,255,255,.65);">Donors will receive a notification</div>
             </div>
         </div>
-        <div style="padding:18px;">
+        <div style="padding:20px;">
             <!-- Campaign -->
-            <div style="margin-bottom:13px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:5px;">
-                    Campaign <span style="color:#ef4444;">*</span>
-                </label>
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:5px;">Campaign <span style="color:#ef4444;">*</span></label>
                 <select name="campaign_id"
-                        style="width:100%;height:40px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;background:white;outline:none;transition:border-color .15s;cursor:pointer;"
-                        onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+                        style="width:100%;height:42px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;background:white;outline:none;transition:all .15s;cursor:pointer;"
+                        onfocus="this.style.borderColor='#7c3aed';this.style.boxShadow='0 0 0 3px rgba(124,58,237,.08)'"
+                        onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
                     <option value="">Select campaign...</option>
                     <?php if ($campaigns): $campaigns->data_seek(0); while ($c = $campaigns->fetch_assoc()): ?>
                     <option value="<?= $c['id'] ?>" <?= ($filter_campaign == $c['id'] || ($_POST['campaign_id'] ?? 0) == $c['id']) ? 'selected' : '' ?>>
@@ -150,40 +151,38 @@ $updates = $db->query("
             </div>
 
             <!-- Title -->
-            <div style="margin-bottom:13px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:5px;">
-                    Update Title <span style="color:#ef4444;">*</span>
-                </label>
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:5px;">Update Title <span style="color:#ef4444;">*</span></label>
                 <input type="text" name="title"
-                       style="width:100%;height:40px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;outline:none;transition:border-color .15s;"
-                       onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'"
+                       style="width:100%;height:42px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;outline:none;transition:all .15s;"
+                       onfocus="this.style.borderColor='#7c3aed';this.style.boxShadow='0 0 0 3px rgba(124,58,237,.08)'"
+                       onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
                        placeholder="e.g. 15 children successfully operated"
                        value="<?= htmlspecialchars($_POST['title'] ?? '') ?>">
             </div>
 
             <!-- Content -->
-            <div style="margin-bottom:13px;">
-                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:5px;">
-                    Content <span style="color:#ef4444;">*</span>
-                </label>
-                <textarea name="content" rows="5"
-                          style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;outline:none;transition:border-color .15s;resize:vertical;line-height:1.55;"
-                          onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'"
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:5px;">Content <span style="color:#ef4444;">*</span></label>
+                <textarea name="content" rows="6"
+                          style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;outline:none;transition:all .15s;resize:vertical;line-height:1.55;"
+                          onfocus="this.style.borderColor='#7c3aed';this.style.boxShadow='0 0 0 3px rgba(124,58,237,.08)'"
+                          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
                           placeholder="Describe the progress in detail..."><?= htmlspecialchars($_POST['content'] ?? '') ?></textarea>
             </div>
 
             <!-- Image upload -->
-            <div style="margin-bottom:13px;">
+            <div style="margin-bottom:14px;">
                 <label style="display:block;font-size:.73rem;font-weight:700;color:#374151;margin-bottom:5px;">
-                    <i class="bi bi-image" style="color:#7c3aed;"></i> Attach Photo (Optional)
+                    <i class="bi bi-image" style="color:#7c3aed;font-size:.72rem;"></i> Attach Photo (Optional)
                 </label>
                 <label style="display:block;cursor:pointer;">
-                    <div style="border:1.5px dashed #e2e8f0;border-radius:9px;padding:16px;text-align:center;background:#fafbff;transition:all .15s;"
-                         ondragover="event.preventDefault();this.style.borderColor='#7c3aed'" ondragleave="this.style.borderColor='#e2e8f0'">
-                        <i class="bi bi-cloud-upload" style="font-size:1.3rem;color:#c4b5fd;display:block;margin-bottom:5px;"></i>
-                        <div style="font-size:.75rem;color:#7c3aed;font-weight:600;">Click to upload photo</div>
+                    <div style="border:1.5px dashed #c4b5fd;border-radius:9px;padding:18px;text-align:center;background:#faf5ff;transition:all .15s;"
+                         ondragover="event.preventDefault();this.style.borderColor='#7c3aed';this.style.background='#ede9fe'" ondragleave="this.style.borderColor='#c4b5fd';this.style.background='#faf5ff'">
+                        <i class="bi bi-cloud-arrow-up-fill" style="font-size:1.5rem;color:#c4b5fd;display:block;margin-bottom:6px;"></i>
+                        <div style="font-size:.76rem;color:#7c3aed;font-weight:600;">Click to upload photo</div>
                         <div style="font-size:.67rem;color:#94a3b8;margin-top:2px;">JPG, PNG · max 5 MB</div>
-                        <div id="imgName" style="display:none;margin-top:7px;font-size:.72rem;color:#15803d;font-weight:600;"></div>
+                        <div id="imgName" style="display:none;margin-top:8px;font-size:.72rem;color:#15803d;font-weight:600;"></div>
                     </div>
                     <input type="file" name="update_image" accept=".jpg,.jpeg,.png,.gif,.webp"
                            style="display:none;" onchange="document.getElementById('imgName').textContent='✓ '+this.files[0].name;document.getElementById('imgName').style.display='block'">
@@ -191,9 +190,9 @@ $updates = $db->query("
             </div>
 
             <!-- Published toggle -->
-            <label style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:10px 12px;background:#faf5ff;border-radius:9px;margin-bottom:14px;border:1.5px solid #ede9fe;">
-                <input type="checkbox" name="is_published" checked
-                       style="width:15px;height:15px;accent-color:#7c3aed;cursor:pointer;">
+            <label style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:11px 13px;background:#faf5ff;border-radius:10px;margin-bottom:16px;border:1.5px solid #ede9fe;transition:all .14s;"
+                   onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#faf5ff'">
+                <input type="checkbox" name="is_published" checked style="width:15px;height:15px;accent-color:#7c3aed;cursor:pointer;">
                 <div>
                     <div style="font-size:.8rem;font-weight:600;color:#374151;">Publish immediately</div>
                     <div style="font-size:.7rem;color:#94a3b8;">Donors will be notified right away</div>
@@ -201,8 +200,9 @@ $updates = $db->query("
             </label>
 
             <button type="submit"
-                    style="width:100%;padding:11px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;border:none;border-radius:10px;font-weight:700;font-size:.86rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 3px 12px rgba(124,58,237,.3);transition:all .18s;"
-                    onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+                    style="width:100%;padding:12px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;border:none;border-radius:10px;font-weight:700;font-size:.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 4px 14px rgba(124,58,237,.3);transition:all .2s;"
+                    onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 20px rgba(124,58,237,.4)'"
+                    onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 14px rgba(124,58,237,.3)'">
                 <i class="bi bi-send-fill"></i>Post Update
             </button>
         </div>

@@ -35,29 +35,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ch_esc   = $db->real_escape_string($channel);
         $msg_esc  = $db->real_escape_string($message);
 
+        // Finance Staff creates transaction → auto-verified immediately
         $db->query("INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
-                    VALUES ($donor_id, $cid_sql, $amount, '$ch_esc', '$msg_esc', $is_anon, 'pending')");
+                    VALUES ($donor_id, $cid_sql, $amount, '$ch_esc', '$msg_esc', $is_anon, 'verified')");
         $donation_id = $db->insert_id;
 
         $ref_esc  = $db->real_escape_string($ref_code);
         $bank_esc = $db->real_escape_string($bank_name);
         $acc_esc  = $db->real_escape_string($acc_number);
         $date_esc = $db->real_escape_string($txn_date);
+        $txn_amount_val = $txn_amount > 0 ? $txn_amount : $amount;
 
         $db->query("INSERT INTO transactions
-                    (donation_id, reference_code, bank_name, account_number, transaction_date, amount_transferred, verification_status)
-                    VALUES ($donation_id, '$ref_esc', '$bank_esc', '$acc_esc', '$date_esc', $txn_amount, 'pending_verification')");
+                    (donation_id, reference_code, bank_name, account_number, transaction_date, amount_transferred, verification_status, verified_by, verified_at)
+                    VALUES ($donation_id, '$ref_esc', '$bank_esc', '$acc_esc', '$date_esc', $txn_amount_val, 'verified', $uid, NOW())");
         $txn_id = $db->insert_id;
 
+        // Update campaign raised amount if linked
+        if ($campaign_id) {
+            $db->query("UPDATE campaigns SET raised_amount = raised_amount + $amount WHERE id = $campaign_id");
+        }
+
+        // Update donor profile total
+        $db->query("UPDATE donor_profiles SET total_donated = total_donated + $amount WHERE user_id = $donor_id");
+
+        // Verification history — submitted + verified in one step
         $db->query("INSERT INTO verification_history (transaction_id, action, performed_by, new_status, notes)
                     VALUES ($txn_id, 'submitted', $uid, 'pending_verification', 'Transaction created by Finance Staff')");
+        $db->query("INSERT INTO verification_history (transaction_id, action, performed_by, old_status, new_status, notes)
+                    VALUES ($txn_id, 'verified', $uid, 'pending_verification', 'verified', 'Auto-verified: created directly by Finance Staff')");
 
+        // Notify donor
+        $camp_name = $campaign_id
+            ? $db->query("SELECT title FROM campaigns WHERE id=$campaign_id")->fetch_assoc()['title'] ?? 'the campaign'
+            : 'our fundraising program';
+        $camp_esc = $db->real_escape_string($camp_name);
         $db->query("INSERT INTO notifications (user_id, title, message, type)
-                    VALUES ($donor_id, 'Donation Recorded',
-                    'A donation of " . formatCurrency($amount) . " has been recorded on your behalf and is pending verification.',
-                    'system')");
+                    VALUES ($donor_id, 'Donation Verified ✓',
+                    'Your donation of " . formatCurrency($amount) . " to \"$camp_esc\" has been recorded and verified by Finance Staff. Thank you!',
+                    'confirmation')");
 
-        setFlash('success', 'Transaction TX-' . str_pad($txn_id,4,'0',STR_PAD_LEFT) . ' created and set to Pending Verification.');
+        setFlash('success', 'Transaction TX-' . str_pad($txn_id,4,'0',STR_PAD_LEFT) . ' created and verified successfully.');
         redirect(SITE_URL . '/finance_staff/transactions.php');
     }
 }
@@ -72,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </span>
             Create New Transaction
         </h1>
-        <p style="color:#64748b;font-size:.79rem;margin:0 0 0 45px;">Record a new donation transaction — will be set to <strong style="color:#d97706;">Pending Verification</strong> (FR-01)</p>
+        <p style="color:#64748b;font-size:.79rem;margin:0 0 0 45px;">Record a donation — Finance Staff-created transactions are <strong style="color:#15803d;">auto-verified immediately</strong></p>
     </div>
     <a href="<?= SITE_URL ?>/finance_staff/transactions.php"
        style="display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:1.5px solid #e2e8f0;border-radius:10px;color:#64748b;font-size:.81rem;font-weight:600;background:white;text-decoration:none;transition:all .15s;white-space:nowrap;"
@@ -112,18 +130,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- Row 1: Donor + Campaign -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-                <div>
+                <div style="position:relative;">
                     <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">Donor <span style="color:#ef4444;">*</span></label>
-                    <select name="donor_id" required
-                            style="width:100%;height:42px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;background:white;outline:none;cursor:pointer;transition:border-color .15s;"
-                            onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'">
-                        <option value="">Select donor...</option>
-                        <?php if($donors) while($d=$donors->fetch_assoc()): ?>
-                        <option value="<?= $d['id'] ?>" <?= ($_POST['donor_id']??'')==$d['id']?'selected':'' ?>>
-                            <?= htmlspecialchars($d['name']) ?> — <?= htmlspecialchars($d['email']) ?>
-                        </option>
-                        <?php endwhile; ?>
-                    </select>
+                    <input type="hidden" name="donor_id" id="donorIdInput" value="<?= htmlspecialchars($_POST['donor_id']??'') ?>" required>
+                    <!-- Search input -->
+                    <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:9px;overflow:hidden;height:42px;transition:border-color .15s;" id="donorInputWrap"
+                         onfocusin="this.style.borderColor='#1447c0'" onfocusout="this.style.borderColor='#e2e8f0'">
+                        <span style="padding:0 11px;background:#f8fafc;border-right:1px solid #e2e8f0;color:#94a3b8;height:100%;display:flex;align-items:center;">
+                            <i class="bi bi-search" style="font-size:.8rem;"></i>
+                        </span>
+                        <input type="text" id="donorSearch" autocomplete="off"
+                               style="flex:1;border:none;outline:none;padding:0 12px;font-size:.83rem;color:#0f172a;background:white;height:100%;"
+                               placeholder="Type name or email to search..."
+                               value="<?php
+                                   if (!empty($_POST['donor_id'])) {
+                                       $d_row = $db->query("SELECT name,email FROM users WHERE id=".(int)$_POST['donor_id'])->fetch_assoc();
+                                       echo htmlspecialchars(($d_row['name']??'') . ' — ' . ($d_row['email']??''));
+                                   }
+                               ?>"
+                               oninput="filterDonors(this.value)"
+                               onfocus="showDonorDropdown()"
+                        >
+                        <button type="button" id="donorClearBtn"
+                                onclick="clearDonor()"
+                                style="padding:0 11px;background:transparent;border:none;color:#94a3b8;cursor:pointer;display:<?= !empty($_POST['donor_id'])?'flex':'none' ?>;align-items:center;"
+                                title="Clear">
+                            <i class="bi bi-x-lg" style="font-size:.72rem;"></i>
+                        </button>
+                    </div>
+                    <!-- Dropdown results -->
+                    <div id="donorDropdown"
+                         style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:white;border:1.5px solid #e2e8f0;border-radius:11px;box-shadow:0 8px 28px rgba(0,0,0,.12);z-index:999;max-height:240px;overflow-y:auto;">
+                    </div>
+                    <div id="donorSelected" style="font-size:.69rem;margin-top:4px;color:<?= !empty($_POST['donor_id'])?'#15803d':'#94a3b8' ?>;">
+                        <?= !empty($_POST['donor_id']) ? '<i class="bi bi-check-circle-fill"></i> Donor selected' : 'Start typing to search donors' ?>
+                    </div>
                 </div>
                 <div>
                     <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">Campaign / Program</label>
@@ -195,7 +236,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Row 3: Ref + Date -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
                 <div>
-                    <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">Reference Code <span style="color:#ef4444;">*</span></label>
+                    <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">
+                        <span id="refCodeLabel">Reference Code</span> <span style="color:#ef4444;">*</span>
+                    </label>
                     <div style="display:flex;align-items:center;border:1.5px solid #e2e8f0;border-radius:9px;overflow:hidden;height:42px;transition:border-color .15s;" onfocusin="this.style.borderColor='#1447c0'" onfocusout="this.style.borderColor='#e2e8f0'">
                         <span style="padding:0 11px;background:#f8fafc;border-right:1px solid #e2e8f0;color:#94a3b8;font-size:.88rem;height:100%;display:flex;align-items:center;">#</span>
                         <input type="text" name="reference_code" required
@@ -203,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                placeholder="e.g. VCB2026100101"
                                value="<?= htmlspecialchars($_POST['reference_code']??'') ?>">
                     </div>
-                    <div style="font-size:.69rem;color:#94a3b8;margin-top:4px;">From bank/payment receipt</div>
+                    <div id="refCodeHint" style="font-size:.69rem;color:#94a3b8;margin-top:4px;">From bank/payment receipt</div>
                 </div>
                 <div>
                     <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">Transaction Date <span style="color:#ef4444;">*</span></label>
@@ -217,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Row 4: Bank Selector + Amount Transferred -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
                 <!-- BANK SELECTOR with logos -->
-                <div>
+                <div id="bankSelectorRow">
                     <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">Bank / Payment Provider</label>
                     <input type="hidden" name="bank_name" id="bankNameInput" value="<?= htmlspecialchars($_POST['bank_name']??'') ?>">
                     <!-- Display trigger -->
@@ -248,24 +291,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div>
-                    <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">Amount Transferred (VND)</label>
+                    <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">
+                        <span id="amtTransferredLabel">Amount Transferred (VND)</span>
+                    </label>
                     <input type="number" name="amount_transferred" id="transferAmountInput" min="0"
                            style="width:100%;height:42px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;outline:none;transition:border-color .15s;"
                            onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'"
                            placeholder="Actual amount on receipt"
                            value="<?= htmlspecialchars($_POST['amount_transferred']??'') ?>">
-                    <div style="font-size:.69rem;color:#94a3b8;margin-top:4px;">Should match donation amount</div>
+                    <div id="amtTransferredHint" style="font-size:.69rem;color:#94a3b8;margin-top:4px;">Should match donation amount</div>
                 </div>
             </div>
 
             <!-- Row 5: Account Number -->
-            <div style="margin-bottom:16px;">
+            <div style="margin-bottom:16px;" id="accountNumberRow">
                 <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:6px;">Account / Transaction Number</label>
                 <input type="text" name="account_number"
                        style="width:100%;height:42px;padding:0 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.82rem;color:#0f172a;outline:none;transition:border-color .15s;"
                        onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'"
                        placeholder="e.g. 1234567890"
                        value="<?= htmlspecialchars($_POST['account_number']??'') ?>">
+            </div>
+
+            <!-- Cash info banner -->
+            <div id="cashInfoBanner" style="display:none;background:linear-gradient(135deg,#fffbeb,#fef9c3);border:1.5px solid #fde68a;border-radius:11px;padding:13px 16px;margin-bottom:16px;align-items:flex-start;gap:10px;">
+                <i class="bi bi-cash-coin" style="color:#d97706;font-size:1.1rem;flex-shrink:0;margin-top:1px;"></i>
+                <div>
+                    <div style="font-size:.79rem;font-weight:700;color:#854d0e;margin-bottom:4px;">Cash Donation — What to fill in</div>
+                    <ul style="margin:0;padding-left:16px;font-size:.75rem;color:#92400e;line-height:1.7;">
+                        <li><strong>Receipt Number</strong>: Auto-generated above — you can edit it (e.g. CASH-20261023-001)</li>
+                        <li><strong>Cash Amount Received</strong>: Enter the exact cash amount collected</li>
+                        <li><strong>Transaction Date</strong>: Date and time you received the cash</li>
+                        <li>Bank and account number fields are hidden — not needed for cash</li>
+                    </ul>
+                </div>
             </div>
 
             <!-- Row 6: Message -->
@@ -296,8 +355,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     style="width:100%;padding:13px;background:linear-gradient(135deg,#1447c0,#0d2157);color:white;border:none;border-radius:11px;font-weight:700;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px rgba(20,71,192,.3);transition:all .18s;letter-spacing:-.01em;"
                     onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 22px rgba(20,71,192,.38)'"
                     onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 16px rgba(20,71,192,.3)'">
-                <i class="bi bi-plus-circle-fill" style="font-size:.9rem;"></i>
-                Create Transaction (Pending Verification)
+                <i class="bi bi-check-circle-fill" style="font-size:.9rem;"></i>
+                Create &amp; Verify Transaction
             </button>
         </div>
     </div>
@@ -314,10 +373,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <span style="font-size:.82rem;font-weight:700;color:white;">What happens next?</span>
         </div>
         <?php foreach([
-            ['bi-send-fill',         '#dbeafe','#1447c0', 'Transaction created with <strong style="color:white;">Pending Verification</strong> status'],
-            ['bi-shield-check',      '#dcfce7','#15803d', 'You can verify it immediately from the Pending list'],
-            ['bi-bell-fill',         '#fef9c3','#d97706', 'Donor receives a notification when verified'],
-            ['bi-graph-up-arrow',    '#fed7aa','#c2410c', 'Campaign progress updates automatically'],
+            ['bi-check-circle-fill', '#dcfce7','#15803d', 'Transaction created and <strong style="color:white;">auto-verified</strong> immediately'],
+            ['bi-graph-up-arrow',    '#fed7aa','#c2410c', 'Campaign raised amount updates automatically'],
+            ['bi-bell-fill',         '#fef9c3','#d97706', 'Donor receives a verified confirmation notification'],
+            ['bi-link-45deg',        '#dbeafe','#1447c0', 'If no campaign selected, use Link Donations to assign'],
         ] as [$ic,$bg,$co,$txt]): ?>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
             <div style="width:28px;height:28px;background:<?= $bg ?>;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -334,7 +393,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div style="width:26px;height:26px;background:#dcfce7;border-radius:7px;display:flex;align-items:center;justify-content:center;">
                 <i class="bi bi-list-check" style="color:#15803d;font-size:.76rem;"></i>
             </div>
-            <span style="font-size:.82rem;font-weight:700;color:#0f172a;">Required Fields (NFR-06)</span>
+            <span style="font-size:.82rem;font-weight:700;color:#0f172a;">Required Fields</span>
         </div>
         <?php foreach(['Donor','Donation amount','Channel','Reference code','Transaction date'] as $f): ?>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
@@ -466,15 +525,52 @@ function filterBanks(val) {
 }
 
 function onChannelChange(val) {
-    // Pre-filter bank list for e-wallet
-    if (val === 'e_wallet') {
-        const ewallets = ['MoMo','ZaloPay','VNPAY','CAKE','Timo'];
-        document.getElementById('bankSearch').value = '';
+    const isCash    = val === 'cash';
+    const isOnline  = ['bank_transfer','e_wallet','credit_card','paypal'].includes(val);
+
+    // ── Reference Code label + placeholder ──────────
+    const refLabel = document.getElementById('refCodeLabel');
+    const refInput = document.querySelector('input[name=reference_code]');
+    const refHint  = document.getElementById('refCodeHint');
+    if (isCash) {
+        refLabel.textContent = 'Receipt Number *';
+        refInput.placeholder = 'e.g. CASH-2026-001';
+        refHint.textContent  = 'Self-generated receipt number for audit trail';
+        // Auto-generate suggestion
+        if (!refInput.value) {
+            const now  = new Date();
+            const ymd  = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+            const seq  = String(Math.floor(Math.random()*900)+100);
+            refInput.value = 'CASH-' + ymd + '-' + seq;
+        }
+    } else {
+        refLabel.textContent = 'Reference Code *';
+        refInput.placeholder = 'e.g. VCB2026100101';
+        refHint.textContent  = 'From bank/payment receipt';
+        if (refInput.value.startsWith('CASH-')) refInput.value = '';
     }
+
+    // ── Bank selector: hide for cash ────────────────
+    const bankRow = document.getElementById('bankSelectorRow');
+    if (bankRow) bankRow.style.display = isCash ? 'none' : '';
+
+    // ── Account number: hide for cash ───────────────
+    const accRow = document.getElementById('accountNumberRow');
+    if (accRow) accRow.style.display = isCash ? 'none' : '';
+
+    // ── Amount transferred label ─────────────────────
+    const amtLabel = document.getElementById('amtTransferredLabel');
+    if (amtLabel) amtLabel.textContent = isCash ? 'Cash Amount Received (VND)' : 'Amount Transferred (VND)';
+    const amtHint = document.getElementById('amtTransferredHint');
+    if (amtHint) amtHint.textContent = isCash ? 'Actual cash amount collected' : 'Should match donation amount';
+
+    // ── Cash info banner ─────────────────────────────
+    const cashBanner = document.getElementById('cashInfoBanner');
+    if (cashBanner) cashBanner.style.display = isCash ? 'flex' : 'none';
 }
 
 // Close on ESC
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBankDropdown(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeBankDropdown(); closeDonorDropdown(); } });
 
 // Init if value already set
 <?php if (!empty($_POST['bank_name'])): ?>
@@ -483,6 +579,103 @@ document.getElementById('bankDisplay').style.color = '#0f172a';
 document.getElementById('bankDisplay').style.fontWeight = '600';
 bankSelected = true;
 <?php endif; ?>
+
+// Trigger channel change on page load if channel already selected (e.g. POST-back)
+<?php if (!empty($_POST['channel'])): ?>
+onChannelChange('<?= htmlspecialchars($_POST['channel']) ?>');
+<?php endif; ?>
+
+// ── Donor Search Autocomplete ──────────────────────
+// Build donor data from PHP
+const DONORS = <?php
+    $donor_list = [];
+    $dr = $db->query("SELECT id, name, email FROM users WHERE role='donor' AND is_active=1 ORDER BY name");
+    if ($dr) while ($row = $dr->fetch_assoc()) {
+        $donor_list[] = ['id'=>(int)$row['id'], 'name'=>$row['name'], 'email'=>$row['email']];
+    }
+    echo json_encode($donor_list, JSON_UNESCAPED_UNICODE);
+?>;
+
+let donorDropdownVisible = false;
+
+function filterDonors(query) {
+    const dd = document.getElementById('donorDropdown');
+    if (!query.trim()) { closeDonorDropdown(); return; }
+
+    const q = query.toLowerCase();
+    const matches = DONORS.filter(d =>
+        d.name.toLowerCase().includes(q) || d.email.toLowerCase().includes(q)
+    ).slice(0, 8);
+
+    if (matches.length === 0) {
+        dd.innerHTML = '<div style="padding:16px;text-align:center;font-size:.79rem;color:#94a3b8;">No donors found</div>';
+    } else {
+        dd.innerHTML = matches.map(d => `
+            <div onclick="selectDonor(${d.id}, '${d.name.replace(/'/g,"\\'")}', '${d.email.replace(/'/g,"\\'")}' )"
+                 style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .12s;border-bottom:1px solid #f8fafc;"
+                 onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background='white'">
+                <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1447c0,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:white;flex-shrink:0;">
+                    ${d.name.trim().charAt(0).toUpperCase()}
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:.82rem;font-weight:700;color:#0f172a;">${d.name}</div>
+                    <div style="font-size:.71rem;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.email}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+    dd.style.display = 'block';
+    donorDropdownVisible = true;
+}
+
+function showDonorDropdown() {
+    const q = document.getElementById('donorSearch').value;
+    if (q.trim().length > 0) filterDonors(q);
+}
+
+function selectDonor(id, name, email) {
+    document.getElementById('donorIdInput').value = id;
+    document.getElementById('donorSearch').value  = name + ' — ' + email;
+    document.getElementById('donorClearBtn').style.display = 'flex';
+    document.getElementById('donorSelected').innerHTML = '<i class="bi bi-check-circle-fill" style="color:#22c55e;"></i> <span style="color:#15803d;font-weight:600;">' + name + ' selected</span>';
+    document.getElementById('donorInputWrap').style.borderColor = '#22c55e';
+    closeDonorDropdown();
+}
+
+function clearDonor() {
+    document.getElementById('donorIdInput').value = '';
+    document.getElementById('donorSearch').value  = '';
+    document.getElementById('donorClearBtn').style.display = 'none';
+    document.getElementById('donorSelected').innerHTML = 'Start typing to search donors';
+    document.getElementById('donorSelected').style.color = '#94a3b8';
+    document.getElementById('donorInputWrap').style.borderColor = '#e2e8f0';
+    document.getElementById('donorSearch').focus();
+}
+
+function closeDonorDropdown() {
+    document.getElementById('donorDropdown').style.display = 'none';
+    donorDropdownVisible = false;
+}
+
+// Close donor dropdown on outside click
+document.addEventListener('click', e => {
+    const wrap = document.getElementById('donorInputWrap');
+    const dd   = document.getElementById('donorDropdown');
+    if (wrap && dd && !wrap.contains(e.target) && !dd.contains(e.target)) {
+        closeDonorDropdown();
+    }
+});
+
+// Validate hidden donor_id before submit
+document.getElementById('txnForm').addEventListener('submit', function(e) {
+    const donorId = document.getElementById('donorIdInput').value;
+    if (!donorId) {
+        e.preventDefault();
+        document.getElementById('donorInputWrap').style.borderColor = '#ef4444';
+        document.getElementById('donorSelected').innerHTML = '<span style="color:#ef4444;font-weight:600;"><i class="bi bi-exclamation-circle-fill"></i> Please select a donor from the list</span>';
+        document.getElementById('donorSearch').focus();
+    }
+});
 </script>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>

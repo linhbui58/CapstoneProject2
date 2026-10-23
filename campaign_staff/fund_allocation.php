@@ -192,7 +192,7 @@ $status_styles = [
     </div>
 </div>
 
-<div style="display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start;">
+<div style="display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start;">
 
 <!-- ═══ LEFT: FORM ═══════════════════════════════ -->
 <div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:80px;">
@@ -330,6 +330,22 @@ $status_styles = [
             </button>
         </div>
     </form>
+
+    <!-- Info card -->
+    <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;border-radius:14px;padding:16px 18px;">
+        <div style="font-size:.76rem;font-weight:700;color:#854d0e;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            <i class="bi bi-shield-check-fill" style="color:#d97706;"></i>Transparency Policy
+        </div>
+        <?php foreach([
+            ['bi-eye-fill',       'Disbursed allocations are visible to donors'],
+            ['bi-paperclip',      'Attach receipts as evidence for each allocation'],
+            ['bi-bar-chart-fill', 'Donors can track how their money is used'],
+        ] as [$ic,$txt]): ?>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:.74rem;color:#92400e;">
+            <i class="bi <?= $ic ?>" style="color:#d97706;font-size:.72rem;flex-shrink:0;"></i><?= $txt ?>
+        </div>
+        <?php endforeach; ?>
+    </div>
 </div>
 
 <!-- ═══ RIGHT: RECORDS TABLE ════════════════════ -->
