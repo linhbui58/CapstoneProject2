@@ -3,6 +3,7 @@
 -- Run AFTER setup.php or vcf_database.sql
 -- =====================================================
 USE vcf_donation;
+SET NAMES utf8mb4;
 
 -- Clear ALL existing data
 SET FOREIGN_KEY_CHECKS = 0;

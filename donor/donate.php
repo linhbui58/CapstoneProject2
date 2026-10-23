@@ -121,6 +121,12 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         <p style="font-size:.78rem;color:#475569;margin:0 0 5px;">Transfer content</p>
         <code id="qrTransferInfo" style="font-size:.9rem;font-weight:700;color:#1447c0;"></code>
         <p id="qrAmount" style="font-size:.9rem;font-weight:700;color:#15803d;margin:8px 0 0;"></p>
+        <div id="donationStatus" role="status" aria-live="polite" style="margin-top:16px;padding:12px;border-radius:9px;background:#fffbeb;color:#92400e;font-size:.82rem;">
+            Đang chờ bạn chuyển khoản. Sau khi chuyển, nhân viên tài chính sẽ kiểm tra và xác nhận giao dịch.
+        </div>
+        <a id="donationDetailsLink" href="#" style="display:none;margin-top:12px;" class="btn btn-outline-primary btn-sm">
+            Xem chi tiết quyên góp
+        </a>
     </div>
 
     <!-- Step 2: Transaction Details -->
@@ -404,8 +410,50 @@ document.getElementById('donateForm').addEventListener('submit', async function 
         document.getElementById('qrBankDetails').textContent = `${result.bank_name} · ${result.account_number}`;
         document.getElementById('qrTransferInfo').textContent = result.transfer_info;
         document.getElementById('qrAmount').textContent = new Intl.NumberFormat('vi-VN').format(result.amount) + ' VND';
+        const donationStatus = document.getElementById('donationStatus');
+        const donationDetailsLink = document.getElementById('donationDetailsLink');
+        const donationDetailsUrl = <?= json_encode(SITE_URL . '/donor/donation_detail.php?id=') ?> + encodeURIComponent(result.donation_id);
+        let statusPolling = true;
+
+        donationDetailsLink.href = donationDetailsUrl;
+        async function checkDonationStatus() {
+            if (!statusPolling) return;
+
+            try {
+                const statusResponse = await fetch(
+                    <?= json_encode(SITE_URL . '/donor/donation_status.php?id=') ?> + encodeURIComponent(result.donation_id),
+                    { headers: { 'Accept': 'application/json' }, cache: 'no-store' }
+                );
+                const statusResult = await statusResponse.json();
+                if (!statusResponse.ok) throw new Error(statusResult.error || 'Không thể kiểm tra trạng thái giao dịch.');
+
+                if (statusResult.verification_status === 'verified') {
+                    statusPolling = false;
+                    donationStatus.textContent = 'Quyên góp đã được xác nhận thành công. Cảm ơn bạn đã đóng góp!';
+                    donationStatus.style.background = '#dcfce7';
+                    donationStatus.style.color = '#166534';
+                    donationDetailsLink.style.display = 'inline-block';
+                } else if (statusResult.verification_status === 'rejected') {
+                    statusPolling = false;
+                    donationStatus.textContent = statusResult.rejection_reason
+                        ? `Giao dịch chưa được xác nhận: ${statusResult.rejection_reason}`
+                        : 'Giao dịch chưa được xác nhận. Vui lòng xem chi tiết để biết thêm thông tin.';
+                    donationStatus.style.background = '#fee2e2';
+                    donationStatus.style.color = '#991b1b';
+                    donationDetailsLink.style.display = 'inline-block';
+                } else {
+                    donationStatus.textContent = 'Đang chờ nhân viên tài chính xác nhận. Trang sẽ tự cập nhật khi giao dịch được xử lý.';
+                    window.setTimeout(checkDonationStatus, 5000);
+                }
+            } catch (error) {
+                donationStatus.textContent = `${error.message} Hệ thống sẽ thử lại sau ít giây.`;
+                window.setTimeout(checkDonationStatus, 10000);
+            }
+        }
+
         document.getElementById('qrPanel').style.display = 'block';
         document.getElementById('qrPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        checkDonationStatus();
     } catch (error) {
         alert(error.message);
     } finally {
