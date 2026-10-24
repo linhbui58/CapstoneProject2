@@ -80,7 +80,7 @@ C:\xampp\htdocs\CapstoneProject2
 3. Import the SQL setup script provided in the `database/` directory, if available.
 4. Configure the database connection in the appropriate file under `config/`.
 
-The QR donation and finance verification endpoints use PDO. Configure `DB_HOST`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in the PHP environment or database configuration. On InfinityFree, create `config/vietqr.php` on the server (next to `db.php`) with the following contents, replacing the example values with the fund account details. This file is excluded from Git and deployment uploads so it remains private and is not overwritten:
+Donation creation, status checks, and finance verification use the application's existing database connection from `config/db.php`. On InfinityFree, create `config/vietqr.php` on the server (next to `db.php`) with the following contents, replacing the example values with the fund account details. This file is excluded from Git and deployment uploads so it remains private and is not overwritten:
 
 ```php
 <?php

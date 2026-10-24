@@ -1,6 +1,5 @@
 <?php
 require_once dirname(__DIR__) . '/includes/auth.php';
-require_once dirname(__DIR__) . '/includes/pdo.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -91,58 +90,80 @@ if (!preg_match('/^[A-Z0-9]{2,20}$/', $bankId) || !preg_match('/^[0-9]{6,30}$/',
 
 try {
     $failureStage = 'connecting to the database';
-    $pdo = getPDO();
+    $db = getDB();
     $failureStage = 'checking the selected campaign';
-    $campaignQuery = $pdo->prepare("SELECT id FROM campaigns WHERE id = :id AND status = 'active' LIMIT 1");
-    $campaignQuery->execute(['id' => $campaignId]);
-    if (!$campaignQuery->fetch()) {
+    $campaignQuery = $db->prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active' LIMIT 1");
+    if (!$campaignQuery) {
+        throw new RuntimeException('Unable to prepare campaign lookup: ' . $db->error);
+    }
+    if (!$campaignQuery->bind_param('i', $campaignId) || !$campaignQuery->execute()) {
+        throw new RuntimeException('Unable to check campaign: ' . $campaignQuery->error);
+    }
+    $campaignQuery->store_result();
+    if ($campaignQuery->num_rows === 0) {
+        $campaignQuery->close();
         respond(422, ['error' => 'The selected campaign is not active.']);
     }
+    $campaignQuery->close();
 
     $transferInfo = sprintf('DONATE %d %d', $campaignId, $donorId);
 
     $failureStage = 'starting the donation transaction';
-    $pdo->beginTransaction();
+    if (!$db->begin_transaction()) {
+        throw new RuntimeException('Unable to start database transaction: ' . $db->error);
+    }
+    $transactionStarted = true;
     $failureStage = 'saving the donation';
-    $donationInsert = $pdo->prepare(
+    $donationInsert = $db->prepare(
         "INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
-         VALUES (:donor_id, :campaign_id, :amount, 'bank_transfer', :message, :is_anonymous, 'pending')"
+         VALUES (?, ?, ?, 'bank_transfer', ?, ?, 'pending')"
     );
-    $donationInsert->execute([
-        'donor_id' => $donorId,
-        'campaign_id' => $campaignId,
-        'amount' => $amount,
-        'message' => $message !== '' ? $message : null,
-        'is_anonymous' => $isAnonymous,
-    ]);
-    $donationId = (int) $pdo->lastInsertId();
+    if (!$donationInsert) {
+        throw new RuntimeException('Unable to prepare donation insert: ' . $db->error);
+    }
+    $donationMessage = $message !== '' ? $message : null;
+    if (!$donationInsert->bind_param('iiisi', $donorId, $campaignId, $amount, $donationMessage, $isAnonymous)
+        || !$donationInsert->execute()) {
+        throw new RuntimeException('Unable to save donation: ' . $donationInsert->error);
+    }
+    $donationInsert->close();
+    $donationId = (int) $db->insert_id;
 
     $failureStage = 'saving the bank transaction';
-    $transactionInsert = $pdo->prepare(
+    $transactionInsert = $db->prepare(
         "INSERT INTO transactions
             (donation_id, reference_code, bank_name, account_number, amount_transferred, verification_status)
-         VALUES (:donation_id, :reference_code, :bank_name, :account_number, NULL, 'pending_verification')"
+         VALUES (?, ?, ?, ?, NULL, 'pending_verification')"
     );
-    $transactionInsert->execute([
-        'donation_id' => $donationId,
-        'reference_code' => $transferInfo,
-        'bank_name' => $bankName,
-        'account_number' => $accountNumber,
-    ]);
-    $transactionId = (int) $pdo->lastInsertId();
+    if (!$transactionInsert) {
+        throw new RuntimeException('Unable to prepare transaction insert: ' . $db->error);
+    }
+    if (!$transactionInsert->bind_param('isss', $donationId, $transferInfo, $bankName, $accountNumber)
+        || !$transactionInsert->execute()) {
+        throw new RuntimeException('Unable to save bank transaction: ' . $transactionInsert->error);
+    }
+    $transactionInsert->close();
+    $transactionId = (int) $db->insert_id;
 
     $failureStage = 'saving the verification history';
-    $historyInsert = $pdo->prepare(
+    $historyInsert = $db->prepare(
         "INSERT INTO verification_history (transaction_id, action, performed_by, old_status, new_status, notes)
-         VALUES (:transaction_id, 'submitted', :performed_by, NULL, 'pending_verification', :notes)"
+         VALUES (?, 'submitted', ?, NULL, 'pending_verification', ?)"
     );
-    $historyInsert->execute([
-        'transaction_id' => $transactionId,
-        'performed_by' => $donorId,
-        'notes' => 'Donation submitted through VietQR.',
-    ]);
+    if (!$historyInsert) {
+        throw new RuntimeException('Unable to prepare verification history insert: ' . $db->error);
+    }
+    $historyNotes = 'Donation submitted through VietQR.';
+    if (!$historyInsert->bind_param('iis', $transactionId, $donorId, $historyNotes)
+        || !$historyInsert->execute()) {
+        throw new RuntimeException('Unable to save verification history: ' . $historyInsert->error);
+    }
+    $historyInsert->close();
     $failureStage = 'committing the donation transaction';
-    $pdo->commit();
+    if (!$db->commit()) {
+        throw new RuntimeException('Unable to commit donation transaction: ' . $db->error);
+    }
+    $transactionStarted = false;
 
     $qrPath = sprintf(
         'https://img.vietqr.io/image/%s-%s-qr_only.png',
@@ -164,10 +185,17 @@ try {
         'qr_url' => $qrUrl,
     ]);
 } catch (Throwable $exception) {
-    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
-        $pdo->rollBack();
+    if (!empty($transactionStarted) && isset($db) && $db instanceof mysqli) {
+        try {
+            $db->rollback();
+        } catch (Throwable $rollbackException) {
+            error_log('QR donation rollback failed: ' . $rollbackException->getMessage());
+        }
     }
-    $errorCode = $exception instanceof PDOException ? (string) $exception->getCode() : 'internal';
+    $errorCode = (string) $exception->getCode();
+    if ($errorCode === '' || $errorCode === '0') {
+        $errorCode = 'internal';
+    }
     $errorCode = preg_match('/^[A-Za-z0-9_-]{1,32}$/', $errorCode) ? $errorCode : 'unknown';
     $errorReference = bin2hex(random_bytes(4));
     error_log(sprintf(

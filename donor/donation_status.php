@@ -1,6 +1,5 @@
 <?php
 require_once dirname(__DIR__) . '/includes/auth.php';
-require_once dirname(__DIR__) . '/includes/pdo.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -25,28 +24,32 @@ if (!$donationId || $donationId < 1) {
 }
 
 try {
-    $pdo = getPDO();
-    $query = $pdo->prepare(
+    $db = getDB();
+    $query = $db->prepare(
         'SELECT d.status, t.verification_status, t.rejection_reason
          FROM donations d
          JOIN transactions t ON t.donation_id = d.id
-         WHERE d.id = :donation_id AND d.donor_id = :donor_id
+         WHERE d.id = ? AND d.donor_id = ?
          LIMIT 1'
     );
-    $query->execute([
-        'donation_id' => $donationId,
-        'donor_id' => (int) $_SESSION['user_id'],
-    ]);
-    $donation = $query->fetch();
-
-    if (!$donation) {
+    if (!$query) {
+        throw new RuntimeException('Unable to prepare donation status lookup: ' . $db->error);
+    }
+    $donorId = (int) $_SESSION['user_id'];
+    if (!$query->bind_param('ii', $donationId, $donorId) || !$query->execute()) {
+        throw new RuntimeException('Unable to retrieve donation status: ' . $query->error);
+    }
+    $query->bind_result($status, $verificationStatus, $rejectionReason);
+    if (!$query->fetch()) {
+        $query->close();
         respond(404, ['error' => 'Donation not found.']);
     }
+    $query->close();
 
     respond(200, [
-        'status' => $donation['status'],
-        'verification_status' => $donation['verification_status'],
-        'rejection_reason' => $donation['rejection_reason'],
+        'status' => $status,
+        'verification_status' => $verificationStatus,
+        'rejection_reason' => $rejectionReason,
     ]);
 } catch (Throwable $exception) {
     error_log('Donation status lookup failed: ' . $exception->getMessage());

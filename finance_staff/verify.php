@@ -2,7 +2,6 @@
 $pageTitle  = 'Verify Transaction';
 $activePage = 'verify';
 require_once dirname(__DIR__) . '/includes/header.php';
-require_once dirname(__DIR__) . '/includes/pdo.php';
 requireRole('finance_staff');
 
 if (!function_exists('sendDonationEmail')) {
@@ -68,51 +67,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('danger', 'A rejection reason is required.');
         redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
     }
-    $pdo = null;
+    $transactionStarted = false;
     try {
-        $pdo = getPDO();
-        $pdo->beginTransaction();
+        if (!$db->begin_transaction()) {
+            throw new RuntimeException('Unable to start verification transaction: ' . $db->error);
+        }
+        $transactionStarted = true;
 
-        $lock = $pdo->prepare('SELECT verification_status FROM transactions WHERE id = :id FOR UPDATE');
-        $lock->execute(['id' => $id]);
-        $lockedStatus = $lock->fetchColumn();
-        if ($lockedStatus !== 'pending_verification') {
-            $pdo->rollBack();
+        $lock = $db->prepare('SELECT verification_status FROM transactions WHERE id = ? FOR UPDATE');
+        if (!$lock) {
+            throw new RuntimeException('Unable to prepare transaction lock: ' . $db->error);
+        }
+        if (!$lock->bind_param('i', $id) || !$lock->execute()) {
+            throw new RuntimeException('Unable to lock transaction: ' . $lock->error);
+        }
+        $lock->bind_result($lockedStatus);
+        $lockFound = $lock->fetch();
+        $lock->close();
+        if (!$lockFound || $lockedStatus !== 'pending_verification') {
+            $db->rollback();
+            $transactionStarted = false;
             setFlash('warning', 'This transaction has already been processed.');
             redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
         }
 
         $oldStatus = $lockedStatus;
         $newStatus = $action;
-        $transactionUpdate = $pdo->prepare(
-            'UPDATE transactions
-             SET verification_status = :status, verified_by = :verified_by,
-                 verified_at = NOW(), rejection_reason = :rejection_reason
-             WHERE id = :id AND verification_status = \'pending_verification\''
+        $transactionUpdate = $db->prepare(
+            "UPDATE transactions SET verification_status = ?, verified_by = ?,
+             verified_at = NOW(), rejection_reason = ?
+             WHERE id = ? AND verification_status = 'pending_verification'"
         );
-        $transactionUpdate->execute([
-            'status' => $newStatus,
-            'verified_by' => $uid,
-            'rejection_reason' => $action === 'rejected' ? $rejection_reason : null,
-            'id' => $id,
-        ]);
-        if ($transactionUpdate->rowCount() !== 1) {
+        if (!$transactionUpdate) {
+            throw new RuntimeException('Unable to prepare transaction update: ' . $db->error);
+        }
+        $rejectionValue = $action === 'rejected' ? $rejection_reason : null;
+        if (!$transactionUpdate->bind_param('sisi', $newStatus, $uid, $rejectionValue, $id)
+            || !$transactionUpdate->execute()) {
+            throw new RuntimeException('Unable to update transaction: ' . $transactionUpdate->error);
+        }
+        if ($transactionUpdate->affected_rows !== 1) {
             throw new RuntimeException('Transaction status changed before verification completed.');
         }
+        $transactionUpdate->close();
 
-        $donationUpdate = $pdo->prepare('UPDATE donations SET status = :status WHERE id = :id AND status = \'pending\'');
-        $donationUpdate->execute(['status' => $newStatus, 'id' => $txn['donation_id']]);
-        if ($donationUpdate->rowCount() !== 1) {
+        $donationUpdate = $db->prepare("UPDATE donations SET status = ? WHERE id = ? AND status = 'pending'");
+        if (!$donationUpdate) {
+            throw new RuntimeException('Unable to prepare donation update: ' . $db->error);
+        }
+        $donationId = (int) $txn['donation_id'];
+        if (!$donationUpdate->bind_param('si', $newStatus, $donationId) || !$donationUpdate->execute()) {
+            throw new RuntimeException('Unable to update donation: ' . $donationUpdate->error);
+        }
+        if ($donationUpdate->affected_rows !== 1) {
             throw new RuntimeException('Donation is no longer pending.');
         }
+        $donationUpdate->close();
 
         if ($action === 'verified') {
             if ($txn['campaign_id']) {
-                $campaignUpdate = $pdo->prepare('UPDATE campaigns SET raised_amount = raised_amount + :amount WHERE id = :id');
-                $campaignUpdate->execute(['amount' => $txn['amount'], 'id' => $txn['campaign_id']]);
+                $campaignUpdate = $db->prepare('UPDATE campaigns SET raised_amount = raised_amount + ? WHERE id = ?');
+                if (!$campaignUpdate) {
+                    throw new RuntimeException('Unable to prepare campaign update: ' . $db->error);
+                }
+                $campaignId = (int) $txn['campaign_id'];
+                $donationAmount = (float) $txn['amount'];
+                if (!$campaignUpdate->bind_param('di', $donationAmount, $campaignId)
+                    || !$campaignUpdate->execute()) {
+                    throw new RuntimeException('Unable to update campaign total: ' . $campaignUpdate->error);
+                }
+                $campaignUpdate->close();
             }
-            $profileUpdate = $pdo->prepare('UPDATE donor_profiles SET total_donated = total_donated + :amount WHERE user_id = :user_id');
-            $profileUpdate->execute(['amount' => $txn['amount'], 'user_id' => $txn['donor_id']]);
+            $profileUpdate = $db->prepare('UPDATE donor_profiles SET total_donated = total_donated + ? WHERE user_id = ?');
+            if (!$profileUpdate) {
+                throw new RuntimeException('Unable to prepare donor profile update: ' . $db->error);
+            }
+            $donorId = (int) $txn['donor_id'];
+            $donationAmount = (float) $txn['amount'];
+            if (!$profileUpdate->bind_param('di', $donationAmount, $donorId)
+                || !$profileUpdate->execute()) {
+                throw new RuntimeException('Unable to update donor total: ' . $profileUpdate->error);
+            }
+            $profileUpdate->close();
 
             $donorFirst = explode(' ', $txn['donor_name'])[0];
             $campaignName = $txn['campaign_title'] ?? 'our fundraising campaign';
@@ -135,30 +171,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flashMessage = 'Transaction has been rejected.';
         }
 
-        $historyInsert = $pdo->prepare(
+        $historyInsert = $db->prepare(
             'INSERT INTO verification_history (transaction_id, action, performed_by, old_status, new_status, notes)
-             VALUES (:transaction_id, :action, :performed_by, :old_status, :new_status, :notes)'
+             VALUES (?, ?, ?, ?, ?, ?)'
         );
-        $historyInsert->execute([
-            'transaction_id' => $id,
-            'action' => $action,
-            'performed_by' => $uid,
-            'old_status' => $oldStatus,
-            'new_status' => $newStatus,
-            'notes' => $action === 'rejected' ? 'Rejection reason: ' . $rejection_reason : 'Transaction verified',
-        ]);
+        if (!$historyInsert) {
+            throw new RuntimeException('Unable to prepare verification history insert: ' . $db->error);
+        }
+        $historyNotes = $action === 'rejected' ? 'Rejection reason: ' . $rejection_reason : 'Transaction verified';
+        if (!$historyInsert->bind_param('isisss', $id, $action, $uid, $oldStatus, $newStatus, $historyNotes)
+            || !$historyInsert->execute()) {
+            throw new RuntimeException('Unable to save verification history: ' . $historyInsert->error);
+        }
+        $historyInsert->close();
 
-        $notificationInsert = $pdo->prepare(
-            'INSERT INTO notifications (user_id, title, message, type)
-             VALUES (:user_id, :title, :message, :type)'
+        $notificationInsert = $db->prepare(
+            'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)'
         );
-        $notificationInsert->execute([
-            'user_id' => $txn['donor_id'],
-            'title' => $action === 'verified' ? 'Donation Verified' : 'Donation Rejected',
-            'message' => $notificationMessage,
-            'type' => $notificationType,
-        ]);
-        $pdo->commit();
+        if (!$notificationInsert) {
+            throw new RuntimeException('Unable to prepare donor notification insert: ' . $db->error);
+        }
+        $notificationTitle = $action === 'verified' ? 'Donation Verified' : 'Donation Rejected';
+        $donorId = (int) $txn['donor_id'];
+        if (!$notificationInsert->bind_param('isss', $donorId, $notificationTitle, $notificationMessage, $notificationType)
+            || !$notificationInsert->execute()) {
+            throw new RuntimeException('Unable to notify donor: ' . $notificationInsert->error);
+        }
+        $notificationInsert->close();
+        if (!$db->commit()) {
+            throw new RuntimeException('Unable to commit verification transaction: ' . $db->error);
+        }
+        $transactionStarted = false;
 
         if ($action === 'verified') {
             try {
@@ -170,8 +213,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash($action === 'verified' ? 'success' : 'warning', $flashMessage);
         redirect(SITE_URL . '/finance_staff/pending.php');
     } catch (Throwable $exception) {
-        if ($pdo instanceof PDO && $pdo->inTransaction()) {
-            $pdo->rollBack();
+        if ($transactionStarted) {
+            $db->rollback();
         }
         error_log('Donation verification failed: ' . $exception->getMessage());
         setFlash('danger', 'Unable to process this transaction. Please try again.');
