@@ -1,32 +1,30 @@
 <?php
-// Điều chỉnh đường dẫn require cho đúng với vị trí bạn lưu thư viện PHPMailer
-require_once __DIR__ . '/../vendor/autoload.php'; // Dùng nếu cài qua Composer
-/* 
-Nếu tải thủ công, dùng 3 dòng sau thay thế:
-require_once __DIR__ . '/../PHPMailer/src/Exception.php';
-require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
-require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
-*/
+require_once __DIR__ . '/../vendor/autoload.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transactionCode) {
+    // Cập nhật đường dẫn trỏ vào thư mục config/mailer.php
+    $config = require __DIR__ . '/../config/mailer.php';
+    
     $mail = new PHPMailer(true);
     
     try {
-        // Cấu hình Server SMTP
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com'; 
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'phucbv910@gmail.com'; // Thay bằng email hệ thống
-        $mail->Password   = 'dxvv owtg muhd gjgx';    // Dùng Mật khẩu ứng dụng (App Password)
+        
+        // Sử dụng biến từ file mailer.php
+        $mail->Username   = $config['SMTP_USER']; 
+        $mail->Password   = $config['SMTP_PASS']; 
+        
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
         $mail->CharSet    = 'UTF-8';
 
-        // Cấu hình người gửi & nhận
-        $mail->setFrom('email_cua_ban@gmail.com', 'VinaCapital Foundation');
+        // Tự động lấy email gửi đi từ file config
+        $mail->setFrom($config['SMTP_USER'], 'VinaCapital Foundation');
         $mail->addAddress($toEmail, $toName);
 
         // Nội dung Email
@@ -59,8 +57,7 @@ function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transact
         $mail->send();
         return true;
     } catch (Exception $e) {
-        // Ghi log nếu gửi mail thất bại để không làm gián đoạn UX của nhân viên Finance
         error_log("Lỗi gửi email tri ân tới {$toEmail}: {$mail->ErrorInfo}");
         return false;
     }
-}   
+}
