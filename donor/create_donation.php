@@ -48,13 +48,36 @@ if (mb_strlen($message) > 5000) {
 }
 
 $amount = (int) $amountInput;
-$bankId        = strtoupper(trim((string) (getenv('VIETQR_BANK_ID')      ?: (defined('VIETQR_BANK_ID')      ? VIETQR_BANK_ID      : ''))));
-$accountNumber = trim((string)           (getenv('VIETQR_ACCOUNT_NO')    ?: (defined('VIETQR_ACCOUNT_NO')    ? VIETQR_ACCOUNT_NO    : '')));
-$accountName   = trim((string)           (getenv('VIETQR_ACCOUNT_NAME')  ?: (defined('VIETQR_ACCOUNT_NAME')  ? VIETQR_ACCOUNT_NAME  : '')));
-$bankName      = trim((string)           (getenv('VIETQR_BANK_NAME')     ?: (defined('VIETQR_BANK_NAME')     ? VIETQR_BANK_NAME     : $bankId)));
+$vietQrConfigPath = dirname(__DIR__) . '/config/vietqr.php';
+$vietQrConfig = [];
+if (is_file($vietQrConfigPath)) {
+    $loadedConfig = require $vietQrConfigPath;
+    if (!is_array($loadedConfig)) {
+        error_log('VietQR configuration must return an array.');
+        respond(500, ['error' => 'VietQR configuration is invalid.']);
+    }
+    $vietQrConfig = $loadedConfig;
+}
+
+$readVietQrSetting = static function (string $environmentKey, string $constantName, string $configKey) use ($vietQrConfig): string {
+    $value = getenv($environmentKey);
+    if (!is_string($value) || trim($value) === '') {
+        $value = defined($constantName) ? constant($constantName) : ($vietQrConfig[$configKey] ?? '');
+    }
+
+    return is_scalar($value) ? trim((string) $value) : '';
+};
+
+$bankId        = strtoupper($readVietQrSetting('VIETQR_BANK_ID', 'VIETQR_BANK_ID', 'bank_id'));
+$accountNumber = $readVietQrSetting('VIETQR_ACCOUNT_NO', 'VIETQR_ACCOUNT_NO', 'account_no');
+$accountName   = $readVietQrSetting('VIETQR_ACCOUNT_NAME', 'VIETQR_ACCOUNT_NAME', 'account_name');
+$bankName      = $readVietQrSetting('VIETQR_BANK_NAME', 'VIETQR_BANK_NAME', 'bank_name');
+if ($bankName === '') {
+    $bankName = $bankId;
+}
 
 if (!preg_match('/^[A-Z0-9]{2,20}$/', $bankId) || !preg_match('/^[0-9]{6,30}$/', $accountNumber)) {
-    respond(503, ['error' => 'The fund bank account is not configured for VietQR.']);
+    respond(503, ['error' => 'Fund bank details are missing or invalid. Configure bank_id and account_no in config/vietqr.php on the server.']);
 }
 
 try {

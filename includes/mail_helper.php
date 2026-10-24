@@ -19,8 +19,8 @@ function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transact
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com'; 
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'email_cua_ban@gmail.com'; // Thay bằng email hệ thống
-        $mail->Password   = 'app_password_cua_ban';    // Dùng Mật khẩu ứng dụng (App Password)
+        $mail->Username   = 'phucbv910@gmail.com'; // Thay bằng email hệ thống
+        $mail->Password   = 'dxvv owtg muhd gjgx';    // Dùng Mật khẩu ứng dụng (App Password)
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
         $mail->CharSet    = 'UTF-8';

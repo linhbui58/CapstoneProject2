@@ -24,5 +24,6 @@ jobs:
         exclude: |
           **/.git/**
           **/config/db.php
+          **/config/vietqr.php
           **/database/*.sql
           README.md

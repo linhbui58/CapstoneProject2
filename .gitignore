@@ -1,5 +1,6 @@
 # Sensitive config
 config/db.php
+config/vietqr.php
 
 # Upload folder
 assets/images/campaigns/*.jpg

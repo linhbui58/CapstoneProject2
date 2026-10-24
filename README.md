@@ -80,20 +80,19 @@ C:\xampp\htdocs\CapstoneProject2
 3. Import the SQL setup script provided in the `database/` directory, if available.
 4. Configure the database connection in the appropriate file under `config/`.
 
-The QR donation and finance verification endpoints use PDO. Configure these environment variables for the PHP process as well:
+The QR donation and finance verification endpoints use PDO. Configure `DB_HOST`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in the PHP environment or database configuration. On InfinityFree, create `config/vietqr.php` on the server (next to `db.php`) with the following contents, replacing the example values with the fund account details. This file is excluded from Git and deployment uploads so it remains private and is not overwritten:
 
-```text
-DB_HOST=localhost
-DB_NAME=vcf_donation
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
-VIETQR_BANK_ID=your_vietqr_bank_code_or_bin
-VIETQR_BANK_NAME=your_bank_name
-VIETQR_ACCOUNT_NO=your_fund_account_number
-VIETQR_ACCOUNT_NAME=your_fund_account_name
+```php
+<?php
+return [
+    'bank_id' => 'your_vietqr_bank_code_or_bin',
+    'bank_name' => 'your_bank_name',
+    'account_no' => 'your_fund_account_number',
+    'account_name' => 'your_fund_account_name',
+];
 ```
 
-Do not commit database credentials or the fund account configuration to the repository.
+The same `VIETQR_BANK_ID`, `VIETQR_BANK_NAME`, `VIETQR_ACCOUNT_NO`, and `VIETQR_ACCOUNT_NAME` PHP environment variables or constants are also supported; environment variables take precedence. Do not commit database credentials or the fund account configuration to the repository.
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
