@@ -519,3 +519,47 @@ function confirmAction() {
 </script>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
+
+<?php
+require_once dirname(__DIR__) . '/includes/mail_helper.php'; // Thêm dòng này ở đầu file
+
+// Giả sử đây là đoạn code nhận POST request khi nhấn nút "Xác nhận"
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['action'] == 'verify') {
+    $transactionId = $_POST['transaction_id'];
+    
+    try {
+        // 1. Thực hiện các câu lệnh UPDATE status giao dịch của bạn ở đây...
+        // ... (Code update transactions, donations, verification_history cũ của bạn) ...
+
+        // 2. WORKFLOW TRI ÂN: Lấy thông tin người dùng và chiến dịch để gửi mail
+        $stmt = $pdo->prepare("
+            SELECT u.email, u.name, t.amount_transferred, c.title, t.reference_code 
+            FROM transactions t
+            JOIN donations d ON t.donation_id = d.id
+            JOIN users u ON d.donor_id = u.id
+            LEFT JOIN campaigns c ON d.campaign_id = c.id
+            WHERE t.id = ?
+        ");
+        $stmt->execute([$transactionId]);
+        $donationInfo = $stmt->fetch();
+
+        // Kiểm tra xem user có email hợp lệ không (có thể bỏ qua những tài khoản ẩn danh không email)
+        if ($donationInfo && !empty($donationInfo['email'])) {
+            // Chạy ngầm hàm gửi mail
+            sendThankYouEmail(
+                $donationInfo['email'], 
+                $donationInfo['name'], 
+                $donationInfo['amount_transferred'], 
+                $donationInfo['title'],
+                $transactionId // Hoặc truyền mã reference_code nếu có
+            );
+        }
+
+        // 3. Redirect về trang danh sách với thông báo thành công
+        // header("Location: pending.php?msg=verified");
+        // exit();
+
+    } catch (PDOException $e) {
+        // Xử lý lỗi Database
+    }
+}
