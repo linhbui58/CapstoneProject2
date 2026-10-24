@@ -27,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$donor_id)       $errors[] = 'Please select a donor.';
     if ($amount <= 0)     $errors[] = 'Donation amount must be greater than 0.';
     if (empty($channel))  $errors[] = 'Please select a donation channel.';
+    if (!in_array($channel, ['bank_transfer', 'e_wallet', 'credit_card', 'cash'], true)) {
+        $errors[] = 'Please select a supported donation channel.';
+    }
     if (empty($ref_code)) $errors[] = 'Transaction reference code is required.';
     if (empty($txn_date)) $errors[] = 'Transaction date is required.';
 
@@ -215,7 +218,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <option value="bank_transfer" <?= ($_POST['channel']??'')==='bank_transfer'?'selected':'' ?>>🏦 Bank Transfer</option>
                         <option value="e_wallet"      <?= ($_POST['channel']??'')==='e_wallet'?'selected':'' ?>>📱 E-Wallet (MoMo, ZaloPay)</option>
                         <option value="credit_card"   <?= ($_POST['channel']??'')==='credit_card'?'selected':'' ?>>💳 Credit Card</option>
-                        <option value="paypal"        <?= ($_POST['channel']??'')==='paypal'?'selected':'' ?>>🌐 PayPal</option>
                         <option value="cash"          <?= ($_POST['channel']??'')==='cash'?'selected':'' ?>>💵 Cash</option>
                     </select>
                 </div>
@@ -526,7 +528,7 @@ function filterBanks(val) {
 
 function onChannelChange(val) {
     const isCash    = val === 'cash';
-    const isOnline  = ['bank_transfer','e_wallet','credit_card','paypal'].includes(val);
+    const isOnline  = ['bank_transfer','e_wallet','credit_card'].includes(val);
 
     // ── Reference Code label + placeholder ──────────
     const refLabel = document.getElementById('refCodeLabel');

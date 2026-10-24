@@ -67,6 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('danger', 'A rejection reason is required.');
         redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
     }
+    if ($action === 'verified' && in_array($txn['channel'], ['paypal', 'credit_card'], true)) {
+        setFlash('danger', 'Gateway-processed donations can only be verified after their payment provider confirms payment.');
+        redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
+    }
     $transactionStarted = false;
     try {
         if (!$db->begin_transaction()) {

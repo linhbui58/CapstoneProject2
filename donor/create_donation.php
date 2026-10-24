@@ -28,15 +28,18 @@ if (!is_string($csrfToken) || empty($_SESSION['csrf_token']) || !hash_equals($_S
     respond(403, ['error' => 'Invalid security token. Refresh the page and try again.']);
 }
 
-$campaignId = filter_var($input['campaign_id'] ?? null, FILTER_VALIDATE_INT);
+$campaignInput = filter_var($input['campaign_id'] ?? null, FILTER_VALIDATE_INT);
 $amountInput = $input['amount'] ?? null;
 $donorId = (int) $_SESSION['user_id'];
 $message = $input['message'] ?? '';
 $isAnonymous = !empty($input['is_anonymous']) ? 1 : 0;
 
-if (!$campaignId || !is_numeric($amountInput) || (float) $amountInput <= 0 || floor((float) $amountInput) !== (float) $amountInput) {
-    respond(422, ['error' => 'Choose an active campaign and enter a positive whole-number amount.']);
+if ($campaignInput === false || $campaignInput === null || $campaignInput < 0
+    || !is_numeric($amountInput) || (float) $amountInput <= 0
+    || floor((float) $amountInput) !== (float) $amountInput) {
+    respond(422, ['error' => 'Choose a program and enter a positive whole-number amount.']);
 }
+$campaignId = $campaignInput > 0 ? $campaignInput : null;
 
 if (!is_string($message)) {
     respond(422, ['error' => 'Invalid donation message.']);
@@ -91,20 +94,22 @@ if (!preg_match('/^[A-Z0-9]{2,20}$/', $bankId) || !preg_match('/^[0-9]{6,30}$/',
 try {
     $failureStage = 'connecting to the database';
     $db = getDB();
-    $failureStage = 'checking the selected campaign';
-    $campaignQuery = $db->prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active' LIMIT 1");
-    if (!$campaignQuery) {
-        throw new RuntimeException('Unable to prepare campaign lookup: ' . $db->error);
-    }
-    if (!$campaignQuery->bind_param('i', $campaignId) || !$campaignQuery->execute()) {
-        throw new RuntimeException('Unable to check campaign: ' . $campaignQuery->error);
-    }
-    $campaignQuery->store_result();
-    if ($campaignQuery->num_rows === 0) {
+    if ($campaignId !== null) {
+        $failureStage = 'checking the selected campaign';
+        $campaignQuery = $db->prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active' LIMIT 1");
+        if (!$campaignQuery) {
+            throw new RuntimeException('Unable to prepare campaign lookup: ' . $db->error);
+        }
+        if (!$campaignQuery->bind_param('i', $campaignId) || !$campaignQuery->execute()) {
+            throw new RuntimeException('Unable to check campaign: ' . $campaignQuery->error);
+        }
+        $campaignQuery->store_result();
+        $campaignIsActive = $campaignQuery->num_rows > 0;
         $campaignQuery->close();
-        respond(422, ['error' => 'The selected campaign is not active.']);
+        if (!$campaignIsActive) {
+            respond(422, ['error' => 'The selected program is not active.']);
+        }
     }
-    $campaignQuery->close();
 
     $transferInfo = sprintf('DONATE %d %d', $campaignId, $donorId);
 
@@ -114,16 +119,22 @@ try {
     }
     $transactionStarted = true;
     $failureStage = 'saving the donation';
-    $donationInsert = $db->prepare(
-        "INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
-         VALUES (?, ?, ?, 'bank_transfer', ?, ?, 'pending')"
+    $donationInsert = $db->prepare($campaignId === null
+        ? "INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
+           VALUES (?, NULL, ?, 'bank_transfer', ?, ?, 'pending')"
+        : "INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
+           VALUES (?, ?, ?, 'bank_transfer', ?, ?, 'pending')"
     );
     if (!$donationInsert) {
         throw new RuntimeException('Unable to prepare donation insert: ' . $db->error);
     }
     $donationMessage = $message !== '' ? $message : null;
-    if (!$donationInsert->bind_param('iiisi', $donorId, $campaignId, $amount, $donationMessage, $isAnonymous)
-        || !$donationInsert->execute()) {
+    if ($campaignId === null) {
+        $bound = $donationInsert->bind_param('iisi', $donorId, $amount, $donationMessage, $isAnonymous);
+    } else {
+        $bound = $donationInsert->bind_param('iiisi', $donorId, $campaignId, $amount, $donationMessage, $isAnonymous);
+    }
+    if (!$bound || !$donationInsert->execute()) {
         throw new RuntimeException('Unable to save donation: ' . $donationInsert->error);
     }
     $donationInsert->close();

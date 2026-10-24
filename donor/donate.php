@@ -3,9 +3,19 @@ $pageTitle  = 'Make a Donation';
 $activePage = 'donate';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
+require_once dirname(__DIR__) . '/includes/vnpay.php';
 
 $db  = getDB();
 $uid = $user['id'];
+$vnpayConfigError = '';
+try {
+    $vnpayConfig = getVnPayConfig(false);
+} catch (Throwable $exception) {
+    error_log('VNPay configuration error on donation page: ' . $exception->getMessage());
+    $vnpayConfig = [];
+    $vnpayConfigError = 'Credit card payments are not configured correctly. Please contact the administrator.';
+}
+$vnpayReady = isset($vnpayConfig['tmn_code'], $vnpayConfig['hash_secret'], $vnpayConfig['mode']);
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -61,7 +71,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
                 <select name="campaign_id" required
                         style="width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;background:white;outline:none;transition:border-color .15s;"
                         onfocus="this.style.borderColor='#1447c0'" onblur="this.style.borderColor='#e2e8f0'">
-                    <option value="">— Select a campaign —</option>
+                    <option value="0" <?= !$campaign_id ? 'selected' : '' ?>>Where it's needed most</option>
                     <?php if ($all_campaigns): $all_campaigns->data_seek(0); while ($ac=$all_campaigns->fetch_assoc()): ?>
                     <option value="<?= $ac['id'] ?>" <?= ($campaign_id==$ac['id'])?'selected':'' ?>>
                         <?= htmlspecialchars($ac['title']) ?>
@@ -110,8 +120,34 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
                 </div>
             </div>
 
-            <input type="hidden" name="channel" value="bank_transfer">
+            <div style="margin-top:18px;">
+                <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:8px;">Select Payment Method</label>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+                    <?php foreach ([
+                        ['bank_transfer', 'Chuyển khoản', 'bi-bank', '#1447c0'],
+                        ['credit_card', 'Credit Card', 'bi-credit-card', '#475569'],
+                    ] as [$method, $label, $icon, $color]): ?>
+                    <label class="payment-method-label" style="display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 8px;border:1.5px solid <?= $method === 'bank_transfer' ? '#1447c0' : '#e2e8f0' ?>;border-radius:9px;background:<?= $method === 'bank_transfer' ? '#dbeafe' : 'white' ?>;cursor:pointer;font-size:.77rem;font-weight:700;color:<?= $color ?>;text-align:center;">
+                        <input type="radio" name="payment_method" value="<?= $method ?>" <?= $method === 'bank_transfer' ? 'checked' : '' ?> <?= $method !== 'bank_transfer' && !$vnpayReady ? 'disabled' : '' ?> style="position:absolute;opacity:0;pointer-events:none;">
+                        <i class="bi <?= $icon ?>"></i><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                <?php if (!$vnpayReady): ?>
+                <div role="status" style="margin-top:9px;padding:10px 12px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:.75rem;">
+                    <?= htmlspecialchars($vnpayConfigError !== '' ? $vnpayConfigError : 'Credit card payments are not set up yet.', ENT_QUOTES, 'UTF-8') ?>
+                </div>
+                <?php else: ?>
+                <div style="margin-top:8px;font-size:.72rem;color:#64748b;">Credit card payments are securely processed by VNPay. Supported cards depend on your merchant account.</div>
+                <?php endif; ?>
+            </div>
         </div>
+    </div>
+
+    <div id="cardPaymentPanel" style="display:none;background:white;border:1px solid #cbd5e1;border-radius:12px;padding:18px;margin-bottom:16px;">
+        <div style="font-size:.9rem;font-weight:700;color:#0f172a;margin-bottom:5px;">Secure credit card payment</div>
+        <div style="font-size:.76rem;color:#64748b;margin-bottom:13px;">You will be redirected to VNPay to complete payment using an eligible card. This website does not collect card details.</div>
+        <div id="cardPaymentStatus" role="status" aria-live="polite" style="display:none;margin-top:12px;padding:11px;border-radius:8px;font-size:.8rem;"></div>
     </div>
 
     <div id="qrPanel" style="display:none;background:white;border:1px solid #bbf7d0;border-radius:12px;padding:20px;margin-bottom:16px;text-align:center;">
@@ -234,7 +270,15 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         </div>
         <div style="padding:20px;">
             <div style="margin-bottom:14px;">
+                <label for="donorEmail" style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:5px;">Email Address</label>
+                <input type="email" id="donorEmail" value="<?= htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>" readonly
+                       style="width:100%;height:44px;padding:0 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#475569;background:#f8fafc;">
+            </div>
+            <div style="margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
                 <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:5px;">Message of Support (Optional)</label>
+                    <span style="font-size:.72rem;color:#64748b;">Donation Frequency: One Time</span>
+                </div>
                 <textarea name="message" rows="3"
                           style="width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;outline:none;transition:border-color .15s;resize:none;"
                           onfocus="this.style.borderColor='#16a34a'" onblur="this.style.borderColor='#e2e8f0'"
@@ -251,7 +295,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
     </div>
 
     <!-- Submit -->
-    <button type="submit"
+    <button type="submit" id="bankDonateButton"
             style="width:100%;padding:14px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border:none;border-radius:12px;font-weight:700;font-size:.92rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 4px 18px rgba(239,68,68,.35);transition:all .2s;letter-spacing:-.01em;"
             onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 24px rgba(239,68,68,.45)'"
             onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 18px rgba(239,68,68,.35)'">
@@ -290,7 +334,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             <i class="bi bi-receipt" style="color:#7c3aed;"></i>Donation Summary
         </div>
         <div id="summaryAmount" style="font-size:1.6rem;font-weight:800;color:#16a34a;letter-spacing:-.03em;margin-bottom:4px;">—</div>
-        <div style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Scan the QR and transfer to the fund account</div>
+        <div id="paymentSummaryHint" style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Scan the QR and transfer to the fund account</div>
         <div style="height:1px;background:#f1f5f9;margin-bottom:12px;"></div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:7px;">
             <span style="color:#64748b;">Campaign</span>
@@ -302,7 +346,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         </div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;">
             <span style="color:#64748b;">Status after submit</span>
-            <span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">Pending Verification</span>
+            <span id="summStatus" style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">Pending Verification</span>
         </div>
     </div>
 
@@ -342,26 +386,44 @@ function clearAmtBtns() {
     updateSummary();
 }
 
-// Channel radio visual
-document.querySelectorAll('.channel-label').forEach(lbl => {
-    lbl.addEventListener('click', function() {
-        document.querySelectorAll('.channel-label').forEach(l => {
-            l.style.borderColor = '#e2e8f0';
-            l.style.background  = 'white';
-        });
-        const inp   = this.querySelector('input');
-        const color = getChannelColor(inp.value);
-        const bg    = getChannelBg(inp.value);
-        this.style.borderColor = color;
-        this.style.background  = bg;
-        inp.checked = true;
-        updateSummary();
-    });
-});
+const vnpayEndpoint = <?= json_encode(SITE_URL . '/donor/vnpay_checkout.php') ?>;
+const vnpayReady = <?= json_encode($vnpayReady) ?>;
+const donationForm = document.getElementById('donateForm');
+const bankDonateButton = document.getElementById('bankDonateButton');
+const cardPaymentPanel = document.getElementById('cardPaymentPanel');
+let qrCreated = false;
 
-function getChannelColor(v){const m={'bank_transfer':'#1447c0','e_wallet':'#15803d','credit_card':'#7c3aed','paypal':'#c2410c','cash':'#854d0e'};return m[v]||'#475569';}
-function getChannelBg(v){const m={'bank_transfer':'#dbeafe','e_wallet':'#dcfce7','credit_card':'#ede9fe','paypal':'#fff7ed','cash':'#fef9c3'};return m[v]||'#f8fafc';}
-function getChannelLabel(v){const m={'bank_transfer':'Bank Transfer','e_wallet':'E-Wallet','credit_card':'Credit Card','paypal':'PayPal','cash':'Cash'};return m[v]||'—';}
+function getPaymentMethod() {
+    return donationForm.querySelector('input[name="payment_method"]:checked')?.value || 'bank_transfer';
+}
+
+function setPaymentMethodUI() {
+    const method = getPaymentMethod();
+    const bankTransfer = method === 'bank_transfer';
+    document.getElementById('amountInput').min = bankTransfer ? '1' : '5000';
+    bankDonateButton.innerHTML = bankTransfer
+        ? '<i class="bi bi-qr-code" style="font-size:.9rem;"></i>Create QR Code / Donate'
+        : '<i class="bi bi-credit-card" style="font-size:.9rem;"></i>Continue to Secure Card Payment';
+    const paymentLabels = document.querySelectorAll('.payment-method-label');
+    paymentLabels.forEach(label => {
+        const input = label.querySelector('input');
+        const selected = input.checked;
+        const color = input.value === 'credit_card' ? '#475569' : '#1447c0';
+        label.style.borderColor = selected ? color : '#e2e8f0';
+        label.style.background = selected ? (input.value === 'bank_transfer' ? '#dbeafe' : '#f1f5f9') : 'white';
+    });
+
+    bankDonateButton.style.display = bankTransfer ? 'flex' : 'none';
+    document.getElementById('qrPanel').style.display = bankTransfer && qrCreated ? 'block' : 'none';
+    cardPaymentPanel.style.display = bankTransfer ? 'none' : 'block';
+    document.getElementById('summChannel').textContent = method === 'credit_card' ? 'Credit Card via VNPay' : 'Bank Transfer';
+    document.getElementById('paymentSummaryHint').textContent = method === 'bank_transfer'
+        ? 'Scan the QR and transfer to the fund account'
+        : 'VNPay securely processes your card payment in VND.';
+    document.getElementById('summStatus').textContent = method === 'bank_transfer'
+        ? 'Pending Verification'
+        : 'Verified after VNPay confirms card payment.';
+}
 
 // Summary update
 function updateSummary() {
@@ -370,20 +432,65 @@ function updateSummary() {
     if(amt>0) amtEl.textContent = new Intl.NumberFormat('vi-VN').format(amt)+' VND';
     else amtEl.textContent='—';
 
-    document.getElementById('summChannel').textContent = 'Bank Transfer';
-
     const camp = document.querySelector('select[name=campaign_id]');
     const campText = camp.options[camp.selectedIndex].text;
-    document.getElementById('summCamp').textContent = camp.value ? campText.substring(0,30) : 'General';
+    document.getElementById('summCamp').textContent = camp.value && camp.value !== '0' ? campText.substring(0,30) : "Where it's needed most";
+
 }
 
 document.getElementById('amountInput').addEventListener('input', updateSummary);
 document.querySelector('select[name=campaign_id]').addEventListener('change', updateSummary);
+donationForm.querySelectorAll('input[name="payment_method"]').forEach(input => {
+    input.addEventListener('change', setPaymentMethodUI);
+});
 updateSummary();
+setPaymentMethodUI();
 
-document.getElementById('donateForm').addEventListener('submit', async function (event) {
+donationForm.addEventListener('submit', async function (event) {
     event.preventDefault();
     const form = event.currentTarget;
+    const paymentMethod = getPaymentMethod();
+    if (paymentMethod === 'credit_card') {
+        if (!vnpayReady) {
+            showCardPaymentStatus('VNPay is not configured. Please choose bank transfer or contact the administrator.', 'error');
+            return;
+        }
+        if (!form.reportValidity()) return;
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalButtonHtml = submitButton.innerHTML;
+        const formData = new FormData(form);
+        submitButton.disabled = true;
+        submitButton.textContent = 'Connecting to VNPay...';
+        try {
+            const response = await fetch(vnpayEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    campaign_id: formData.get('campaign_id'),
+                    amount: formData.get('amount'),
+                    message: formData.get('message'),
+                    is_anonymous: formData.has('is_anonymous'),
+                    csrf_token: formData.get('csrf_token')
+                })
+            });
+            const responseText = await response.text();
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch {
+                throw new Error(`The server returned an invalid VNPay response (HTTP ${response.status}).`);
+            }
+            if (!response.ok) {
+                throw new Error(result.error || `Unable to start card payment (HTTP ${response.status}).`);
+            }
+            window.location.assign(result.payment_url);
+        } catch (error) {
+            showCardPaymentStatus(error.message, 'error');
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalButtonHtml;
+        }
+        return;
+    }
     const submitButton = form.querySelector('button[type="submit"]');
     const originalButtonHtml = submitButton.innerHTML;
     const formData = new FormData(form);
@@ -415,6 +522,7 @@ document.getElementById('donateForm').addEventListener('submit', async function 
         }
 
         document.getElementById('donationQr').src = result.qr_url;
+        qrCreated = true;
         document.getElementById('qrBankDetails').textContent = `${result.bank_name} · ${result.account_number}`;
         document.getElementById('qrTransferInfo').textContent = result.transfer_info;
         document.getElementById('qrAmount').textContent = new Intl.NumberFormat('vi-VN').format(result.amount) + ' VND';
@@ -470,6 +578,14 @@ document.getElementById('donateForm').addEventListener('submit', async function 
     }
 });
 
+function showCardPaymentStatus(message, type) {
+    const status = document.getElementById('cardPaymentStatus');
+    status.style.display = 'block';
+    status.style.background = type === 'success' ? '#dcfce7' : '#fee2e2';
+    status.style.color = type === 'success' ? '#166534' : '#991b1b';
+    status.textContent = message;
+}
+
 // ── Bank selector ──────────────────────────────
 const BANKS = [
     { code:'VCB',   name:'Vietcombank',      fullname:'Ngân hàng Ngoại thương VN',       color:'#006438', logo:'https://cdn.haitrieu.com/wp-content/uploads/2022/01/Logo-Vietcombank.png' },
@@ -496,7 +612,6 @@ const BANKS = [
     { code:'ZALO',  name:'ZaloPay',          fullname:'Ví điện tử ZaloPay',            color:'#0068ff', logo:'https://cdn.haitrieu.com/wp-content/uploads/2022/01/Logo-ZaloPay.png' },
     { code:'VNPAY', name:'VNPAY',            fullname:'Cổng thanh toán VNPAY',         color:'#005bac', logo:'https://cdn.haitrieu.com/wp-content/uploads/2022/01/Logo-VNPAY-QR.png' },
     { code:'SHOPEE',name:'ShopeePay',        fullname:'Ví điện tử ShopeePay',          color:'#ee4d2d', logo:null },
-    { code:'PAYPAL',name:'PayPal',           fullname:'PayPal International',           color:'#003087', logo:'https://cdn.haitrieu.com/wp-content/uploads/2022/01/Logo-Paypal.png' },
     { code:'OTHER', name:'Other / Khác',     fullname:'Ngân hàng hoặc tổ chức khác',   color:'#475569', logo:null },
 ];
 

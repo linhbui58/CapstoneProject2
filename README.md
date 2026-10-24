@@ -94,6 +94,19 @@ return [
 
 The same `VIETQR_BANK_ID`, `VIETQR_BANK_NAME`, `VIETQR_ACCOUNT_NO`, and `VIETQR_ACCOUNT_NAME` PHP environment variables or constants are also supported; environment variables take precedence. Do not commit database credentials or the fund account configuration to the repository.
 
+Credit card donations are processed by VNPay in VND. Create `config/vnpay.php` on the server with the merchant credentials provided by VNPay:
+
+```php
+<?php
+return [
+    'tmn_code' => 'YOUR_VNPAY_TMN_CODE',
+    'hash_secret' => 'YOUR_VNPAY_HASH_SECRET',
+    'mode' => 'sandbox',
+];
+```
+
+Use the sandbox credentials and test gateway first. Before going live, replace them with the live merchant credentials and set `mode` to `live`. Register `https://your-domain/donor/vnpay_ipn.php` as the IPN URL in the VNPay merchant portal. The return URL is generated from the application's `SITE_URL`; use the site's public HTTPS address. The private config file is excluded from Git and deployment uploads. Card entry and processing take place on VNPay; this application never collects or stores card numbers. The card option requests VNPay's international card method (`INTCARD`), and availability depends on the merchant account. VNPay card donations must be at least 5,000 VND.
+
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
 ### Step 5: Run the Application

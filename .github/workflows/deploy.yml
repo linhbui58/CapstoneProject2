@@ -25,5 +25,7 @@ jobs:
           **/.git/**
           **/config/db.php
           **/config/vietqr.php
+          **/config/vnpay.php
+          **/config/paypal.php
           **/database/*.sql
           README.md
