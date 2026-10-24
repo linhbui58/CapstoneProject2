@@ -277,11 +277,40 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
                 <input type="email" id="donorEmail" value="<?= htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>" readonly
                        style="width:100%;height:44px;padding:0 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#475569;background:#f8fafc;">
             </div>
+
+            <!-- Donation Frequency -->
             <div style="margin-bottom:14px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-                <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:5px;">Message of Support (Optional)</label>
-                    <span style="font-size:.72rem;color:#64748b;">Donation Frequency: One Time</span>
+                <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:8px;">
+                    Donation Frequency
+                    <span style="background:#eff6ff;color:#1447c0;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:5px;">Recurring support 🔄</span>
+                </label>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;" id="frequencyGrid">
+                    <?php foreach([
+                        ['one_time',  'One Time',  'bi-1-circle',      'Make a single donation'],
+                        ['monthly',   'Monthly',   'bi-calendar-month','Donate every month'],
+                        ['quarterly', 'Quarterly', 'bi-calendar3',     'Donate every quarter'],
+                        ['yearly',    'Yearly',    'bi-calendar-check','Donate once a year'],
+                    ] as [$val, $label, $icon, $hint]): ?>
+                    <label class="freq-label"
+                           data-val="<?= $val ?>"
+                           style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border:1.5px solid <?= $val === 'one_time' ? '#1447c0' : '#e2e8f0' ?>;border-radius:9px;background:<?= $val === 'one_time' ? '#eff6ff' : 'white' ?>;cursor:pointer;text-align:center;transition:all .15s;position:relative;">
+                        <input type="radio" name="frequency" value="<?= $val ?>" <?= $val === 'one_time' ? 'checked' : '' ?>
+                               style="position:absolute;opacity:0;pointer-events:none;"
+                               onchange="updateFrequencyUI()">
+                        <i class="bi <?= $icon ?>" style="font-size:1rem;color:<?= $val === 'one_time' ? '#1447c0' : '#94a3b8' ?>;"></i>
+                        <span style="font-size:.72rem;font-weight:700;color:<?= $val === 'one_time' ? '#1447c0' : '#475569' ?>;"><?= $label ?></span>
+                        <span style="font-size:.62rem;color:#94a3b8;line-height:1.3;"><?= $hint ?></span>
+                    </label>
+                    <?php endforeach; ?>
                 </div>
+                <div id="recurringNote" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:.74rem;color:#15803d;">
+                    <i class="bi bi-info-circle-fill me-1"></i>
+                    <strong>Recurring donation:</strong> Each period you will receive a reminder to submit your donation. Finance staff will verify each payment individually.
+                </div>
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:5px;">Message of Support (Optional)</label>
                 <textarea name="message" rows="3"
                           style="width:100%;padding:10px 13px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.83rem;color:#0f172a;outline:none;transition:border-color .15s;resize:none;"
                           onfocus="this.style.borderColor='#16a34a'" onblur="this.style.borderColor='#e2e8f0'"
@@ -346,6 +375,12 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:7px;">
             <span style="color:#64748b;">Channel</span>
             <span style="font-weight:600;color:#0f172a;" id="summChannel">Bank Transfer</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:7px;">
+            <span style="color:#64748b;">Frequency</span>
+            <span style="font-weight:600;color:#0f172a;" id="summFrequency">
+                <span style="background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">One Time</span>
+            </span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;">
             <span style="color:#64748b;">Status after submit</span>
@@ -438,12 +473,46 @@ function updateSummary() {
     const campText = camp.options[camp.selectedIndex].text;
     document.getElementById('summCamp').textContent = camp.value && camp.value !== '0' ? campText.substring(0,30) : "Where it's needed most";
 
+    // Update frequency badge in summary
+    const freqInput = donationForm.querySelector('input[name="frequency"]:checked');
+    const freqVal   = freqInput ? freqInput.value : 'one_time';
+    const freqMap   = {
+        one_time:  {label:'One Time',  bg:'#f1f5f9',  color:'#475569'},
+        monthly:   {label:'Monthly 🔄',  bg:'#dcfce7',  color:'#15803d'},
+        quarterly: {label:'Quarterly 🔄', bg:'#dbeafe',  color:'#1447c0'},
+        yearly:    {label:'Yearly 🔄',    bg:'#ede9fe',  color:'#7c3aed'},
+    };
+    const f = freqMap[freqVal] || freqMap.one_time;
+    document.getElementById('summFrequency').innerHTML =
+        `<span style="background:${f.bg};color:${f.color};padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">${f.label}</span>`;
+}
+
+// Frequency selector UI
+function updateFrequencyUI() {
+    const selected = donationForm.querySelector('input[name="frequency"]:checked')?.value || 'one_time';
+    document.querySelectorAll('.freq-label').forEach(lbl => {
+        const v = lbl.dataset.val;
+        const active = v === selected;
+        const colorMap = {one_time:'#1447c0', monthly:'#15803d', quarterly:'#1447c0', yearly:'#7c3aed'};
+        const bgMap    = {one_time:'#eff6ff',  monthly:'#f0fdf4',  quarterly:'#eff6ff',  yearly:'#faf5ff'};
+        lbl.style.borderColor = active ? colorMap[v] : '#e2e8f0';
+        lbl.style.background  = active ? bgMap[v]    : 'white';
+        lbl.querySelector('i').style.color     = active ? colorMap[v] : '#94a3b8';
+        lbl.querySelector('span').style.color  = active ? colorMap[v] : '#475569';
+    });
+    // Show/hide recurring note
+    const note = document.getElementById('recurringNote');
+    if (note) note.style.display = selected === 'one_time' ? 'none' : 'block';
+    updateSummary();
 }
 
 document.getElementById('amountInput').addEventListener('input', updateSummary);
 document.querySelector('select[name=campaign_id]').addEventListener('change', updateSummary);
 donationForm.querySelectorAll('input[name="payment_method"]').forEach(input => {
     input.addEventListener('change', setPaymentMethodUI);
+});
+donationForm.querySelectorAll('input[name="frequency"]').forEach(input => {
+    input.addEventListener('change', updateFrequencyUI);
 });
 updateSummary();
 setPaymentMethodUI();
@@ -499,6 +568,7 @@ donationForm.addEventListener('submit', async function (event) {
     const payload = {
         campaign_id: formData.get('campaign_id'),
         amount: formData.get('amount'),
+        frequency: formData.get('frequency') || 'one_time',
         message: formData.get('message'),
         is_anonymous: formData.has('is_anonymous'),
         csrf_token: formData.get('csrf_token')

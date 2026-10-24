@@ -12,6 +12,11 @@ $pending_verif  = $db->query("SELECT COUNT(*) as t FROM transactions WHERE verif
 $total_donat    = $db->query("SELECT COUNT(*) as t FROM donations")->fetch_assoc()['t'];
 $total_alloc    = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations")->fetch_assoc()['t'];
 
+// Recurring donors KPI
+$db->query("ALTER TABLE donations ADD COLUMN IF NOT EXISTS frequency ENUM('one_time','monthly','quarterly','yearly') NOT NULL DEFAULT 'one_time' AFTER channel");
+$recurring_donors_count = $db->query("SELECT COUNT(DISTINCT donor_id) as t FROM donations WHERE frequency != 'one_time' AND status='verified'")->fetch_assoc()['t'];
+$recurring_donor_pct    = $total_donors > 0 ? round(($recurring_donors_count / $total_donors) * 100, 1) : 0;
+
 // Monthly trend
 $monthly = $db->query("SELECT DATE_FORMAT(created_at,'%b') as lbl, DATE_FORMAT(created_at,'%Y-%m') as ym, COALESCE(SUM(amount),0) as total, COUNT(*) as cnt FROM donations WHERE status='verified' AND created_at>=DATE_SUB(NOW(),INTERVAL 6 MONTH) GROUP BY ym,lbl ORDER BY ym ASC");
 $m_labels=[]; $m_amounts=[]; $m_counts=[];
@@ -69,6 +74,22 @@ $top_donors=$db->query("SELECT u.name,SUM(d.amount) as total,COUNT(d.id) as cnt 
         <div style="font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;"><?= $lbl ?></div>
     </div>
     <?php endforeach; ?>
+</div>
+
+<!-- Recurring donors highlight bar -->
+<div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:13px;padding:14px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:42px;height:42px;background:#15803d;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🔄</div>
+        <div>
+            <div style="font-size:.86rem;font-weight:700;color:#15803d;">Recurring Donor Rate: <strong><?= $recurring_donor_pct ?>%</strong> (<?= $recurring_donors_count ?> of <?= $total_donors ?> donors)</div>
+            <div style="font-size:.73rem;color:#16a34a;margin-top:2px;">Donors who have committed to monthly, quarterly, or yearly giving — key donor retention KPI</div>
+        </div>
+    </div>
+    <a href="<?= SITE_URL ?>/manager/donations.php?frequency=monthly"
+       style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:#15803d;color:white;border-radius:8px;font-size:.78rem;font-weight:700;text-decoration:none;white-space:nowrap;transition:opacity .15s;"
+       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        View Recurring <i class="bi bi-arrow-right"></i>
+    </a>
 </div>
 
 <!-- Charts row -->

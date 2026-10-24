@@ -12,6 +12,11 @@ $total_donations = $db->query("SELECT COUNT(*) as cnt FROM donations WHERE donor
 $pending = $db->query("SELECT COUNT(*) as cnt FROM donations WHERE donor_id=$uid AND status='pending'")->fetch_assoc()['cnt'];
 $campaigns_supported = $db->query("SELECT COUNT(DISTINCT campaign_id) as cnt FROM donations WHERE donor_id=$uid AND campaign_id IS NOT NULL AND status='verified'")->fetch_assoc()['cnt'];
 
+// Recurring stats for this donor
+$db->query("ALTER TABLE donations ADD COLUMN IF NOT EXISTS frequency ENUM('one_time','monthly','quarterly','yearly') NOT NULL DEFAULT 'one_time' AFTER channel");
+$recurring_count = (int)$db->query("SELECT COUNT(*) as c FROM donations WHERE donor_id=$uid AND frequency != 'one_time' AND status='verified'")->fetch_assoc()['c'];
+$is_recurring_donor = $recurring_count > 0;
+
 // Recent donations
 $recent = $db->query("
     SELECT d.*, c.title as campaign_title
@@ -38,6 +43,20 @@ $campaigns = $db->query("
         <i class="bi bi-heart me-2"></i>Donate Now
     </a>
 </div>
+
+<!-- Recurring donor badge (show if applicable) -->
+<?php if ($is_recurring_donor): ?>
+<div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:12px;padding:13px 18px;margin-bottom:18px;display:flex;align-items:center;gap:12px;">
+    <div style="font-size:24px;">🔄</div>
+    <div>
+        <div style="font-size:.85rem;font-weight:700;color:#15803d;">You are a Recurring Donor!</div>
+        <div style="font-size:.74rem;color:#16a34a;">Thank you for your <?= $recurring_count ?> recurring contribution(s). Your consistent support makes a lasting impact.</div>
+    </div>
+    <a href="<?= SITE_URL ?>/donor/my_donations.php?frequency=monthly" style="margin-left:auto;font-size:.76rem;font-weight:700;color:#15803d;text-decoration:none;white-space:nowrap;">
+        View recurring →
+    </a>
+</div>
+<?php endif; ?>
 
 <!-- Stats -->
 <div class="row g-3 mb-4">

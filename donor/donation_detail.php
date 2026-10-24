@@ -70,6 +70,23 @@ $history = $db->query("
                     <dt class="col-sm-4 text-muted">Channel</dt>
                     <dd class="col-sm-8"><?= ucfirst(str_replace('_', ' ', $donation['channel'])) ?></dd>
 
+                    <dt class="col-sm-4 text-muted">Frequency</dt>
+                    <dd class="col-sm-8">
+                        <?php
+                        $freq_map = [
+                            'one_time'  => ['One Time',  '#f1f5f9','#475569'],
+                            'monthly'   => ['Monthly 🔄',  '#dcfce7','#15803d'],
+                            'quarterly' => ['Quarterly 🔄', '#dbeafe','#1447c0'],
+                            'yearly'    => ['Yearly 🔄',    '#ede9fe','#7c3aed'],
+                        ];
+                        $fq = $donation['frequency'] ?? 'one_time';
+                        $fm = $freq_map[$fq] ?? $freq_map['one_time'];
+                        ?>
+                        <span style="background:<?= $fm[1] ?>;color:<?= $fm[2] ?>;padding:2px 10px;border-radius:6px;font-size:.8rem;font-weight:700;">
+                            <?= $fm[0] ?>
+                        </span>
+                    </dd>
+
                     <dt class="col-sm-4 text-muted">Anonymous</dt>
                     <dd class="col-sm-8"><?= $donation['is_anonymous'] ? 'Yes' : 'No' ?></dd>
 

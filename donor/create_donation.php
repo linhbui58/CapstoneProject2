@@ -34,6 +34,11 @@ $donorId = (int) $_SESSION['user_id'];
 $message = $input['message'] ?? '';
 $isAnonymous = !empty($input['is_anonymous']) ? 1 : 0;
 
+// Validate frequency — must be one of the 4 allowed values, default one_time
+$allowedFrequencies = ['one_time', 'monthly', 'quarterly', 'yearly'];
+$frequencyInput = $input['frequency'] ?? 'one_time';
+$frequency = in_array($frequencyInput, $allowedFrequencies, true) ? $frequencyInput : 'one_time';
+
 if ($campaignInput === false || $campaignInput === null || $campaignInput < 0
     || !is_numeric($amountInput) || (float) $amountInput <= 0
     || floor((float) $amountInput) !== (float) $amountInput) {
@@ -120,19 +125,19 @@ try {
     $transactionStarted = true;
     $failureStage = 'saving the donation';
     $donationInsert = $db->prepare($campaignId === null
-        ? "INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
-           VALUES (?, NULL, ?, 'bank_transfer', ?, ?, 'pending')"
-        : "INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
-           VALUES (?, ?, ?, 'bank_transfer', ?, ?, 'pending')"
+        ? "INSERT INTO donations (donor_id, campaign_id, amount, channel, frequency, message, is_anonymous, status)
+           VALUES (?, NULL, ?, 'bank_transfer', ?, ?, ?, 'pending')"
+        : "INSERT INTO donations (donor_id, campaign_id, amount, channel, frequency, message, is_anonymous, status)
+           VALUES (?, ?, ?, 'bank_transfer', ?, ?, ?, 'pending')"
     );
     if (!$donationInsert) {
         throw new RuntimeException('Unable to prepare donation insert: ' . $db->error);
     }
     $donationMessage = $message !== '' ? $message : null;
     if ($campaignId === null) {
-        $bound = $donationInsert->bind_param('iisi', $donorId, $amount, $donationMessage, $isAnonymous);
+        $bound = $donationInsert->bind_param('iissi', $donorId, $amount, $frequency, $donationMessage, $isAnonymous);
     } else {
-        $bound = $donationInsert->bind_param('iiisi', $donorId, $campaignId, $amount, $donationMessage, $isAnonymous);
+        $bound = $donationInsert->bind_param('iiissi', $donorId, $campaignId, $amount, $frequency, $donationMessage, $isAnonymous);
     }
     if (!$bound || !$donationInsert->execute()) {
         throw new RuntimeException('Unable to save donation: ' . $donationInsert->error);
@@ -164,7 +169,7 @@ try {
     if (!$historyInsert) {
         throw new RuntimeException('Unable to prepare verification history insert: ' . $db->error);
     }
-    $historyNotes = 'Donation submitted through VietQR.';
+    $historyNotes = 'Donation submitted through VietQR.' . ($frequency !== 'one_time' ? ' Frequency: ' . $frequency . '.' : '');
     if (!$historyInsert->bind_param('iis', $transactionId, $donorId, $historyNotes)
         || !$historyInsert->execute()) {
         throw new RuntimeException('Unable to save verification history: ' . $historyInsert->error);
@@ -190,6 +195,7 @@ try {
     respond(201, [
         'donation_id' => $donationId,
         'amount' => $amount,
+        'frequency' => $frequency,
         'bank_name' => $bankName,
         'account_number' => $accountNumber,
         'transfer_info' => $transferInfo,

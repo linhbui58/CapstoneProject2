@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS donations (
     campaign_id INT,
     amount DECIMAL(15,2) NOT NULL,
     channel ENUM('bank_transfer', 'e_wallet', 'credit_card', 'paypal', 'cash') NOT NULL,
+    frequency ENUM('one_time', 'monthly', 'quarterly', 'yearly') NOT NULL DEFAULT 'one_time',
     message TEXT,
     is_anonymous TINYINT(1) DEFAULT 0,
     status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending',
@@ -252,54 +253,51 @@ INSERT INTO campaigns (id, title, description, target_amount, raised_amount, sta
 -- =====================================================
 -- DONATIONS
 -- =====================================================
-INSERT INTO donations (id, donor_id, campaign_id, amount, channel, message, is_anonymous, status, created_at) VALUES
+INSERT INTO donations (id, donor_id, campaign_id, amount, channel, frequency, message, is_anonymous, status, created_at) VALUES
 -- Campaign 1: Rural Schools
-(1,  4,  1, 2000000,  'bank_transfer', 'Hope this helps the kids!', 0, 'verified',  '2026-01-15 09:23:00'),
-(2,  5,  1, 5000000,  'bank_transfer', 'Education is the future', 0, 'verified',  '2026-01-18 14:10:00'),
-(3,  6,  1, 1000000,  'e_wallet',      '', 0, 'verified',  '2026-01-22 10:45:00'),
-(4,  7,  1, 3000000,  'bank_transfer', 'For the children of Vietnam', 0, 'verified',  '2026-02-05 16:30:00'),
-(5,  13, 1, 10000000, 'bank_transfer', 'Our company supports education', 0, 'verified',  '2026-02-10 11:00:00'),
-(6,  9,  1, 5000000,  'credit_card',   '', 1, 'verified',  '2026-02-20 13:20:00'),
-(7,  8,  1, 500000,   'e_wallet',      'Small amount but with big heart', 0, 'verified',  '2026-03-01 08:15:00'),
-(8,  10, 1, 1500000,  'bank_transfer', '', 0, 'verified',  '2026-03-15 15:40:00'),
-(9,  4,  1, 3000000,  'bank_transfer', 'Monthly contribution', 0, 'pending',   '2026-10-01 09:00:00'),
+(1,  4,  1, 2000000,  'bank_transfer', 'monthly',   'Hope this helps the kids!', 0, 'verified',  '2026-01-15 09:23:00'),
+(2,  5,  1, 5000000,  'bank_transfer', 'one_time',  'Education is the future', 0, 'verified',  '2026-01-18 14:10:00'),
+(3,  6,  1, 1000000,  'e_wallet',      'one_time',  '', 0, 'verified',  '2026-01-22 10:45:00'),
+(4,  7,  1, 3000000,  'bank_transfer', 'monthly',   'For the children of Vietnam', 0, 'verified',  '2026-02-05 16:30:00'),
+(5,  13, 1, 10000000, 'bank_transfer', 'quarterly', 'Our company supports education', 0, 'verified',  '2026-02-10 11:00:00'),
+(6,  9,  1, 5000000,  'credit_card',   'one_time',  '', 1, 'verified',  '2026-02-20 13:20:00'),
+(7,  8,  1, 500000,   'e_wallet',      'monthly',   'Small amount but with big heart', 0, 'verified',  '2026-03-01 08:15:00'),
+(8,  10, 1, 1500000,  'bank_transfer', 'one_time',  '', 0, 'verified',  '2026-03-15 15:40:00'),
+(9,  4,  1, 3000000,  'bank_transfer', 'monthly',   'Monthly contribution', 0, 'pending',   '2026-10-01 09:00:00'),
 
 -- Campaign 2: Healthcare
-(10, 5,  2, 7000000,  'bank_transfer', 'Healthcare for all', 0, 'verified',  '2026-02-15 10:30:00'),
-(11, 11, 2, 2000000,  'e_wallet',      '', 0, 'verified',  '2026-02-20 14:00:00'),
-(12, 12, 2, 3000000,  'bank_transfer', 'Supporting rural healthcare', 0, 'verified',  '2026-03-05 09:45:00'),
-(13, 13, 2, 15000000, 'bank_transfer', 'Corporate donation', 0, 'verified',  '2026-03-10 11:30:00'),
-(14, 7,  2, 2000000,  'credit_card',   '', 0, 'verified',  '2026-04-01 16:00:00'),
-(15, 6,  2, 1000000,  'e_wallet',      '', 0, 'pending',   '2026-10-02 08:00:00'),
+(10, 5,  2, 7000000,  'bank_transfer', 'one_time',  'Healthcare for all', 0, 'verified',  '2026-02-15 10:30:00'),
+(11, 11, 2, 2000000,  'e_wallet',      'monthly',   '', 0, 'verified',  '2026-02-20 14:00:00'),
+(12, 12, 2, 3000000,  'bank_transfer', 'one_time',  'Supporting rural healthcare', 0, 'verified',  '2026-03-05 09:45:00'),
+(13, 13, 2, 15000000, 'bank_transfer', 'yearly',    'Corporate donation', 0, 'verified',  '2026-03-10 11:30:00'),
+(14, 7,  2, 2000000,  'credit_card',   'one_time',  '', 0, 'verified',  '2026-04-01 16:00:00'),
+(15, 6,  2, 1000000,  'e_wallet',      'monthly',   '', 0, 'pending',   '2026-10-02 08:00:00'),
 
 -- Campaign 3: Clean Water (completed)
-(16, 9,  3, 10000000, 'bank_transfer', 'Clean water is a basic right', 0, 'verified',  '2026-01-20 10:00:00'),
-(17, 5,  3, 5000000,  'bank_transfer', '', 0, 'verified',  '2026-02-01 14:30:00'),
-(18, 13, 3, 20000000, 'bank_transfer', 'Full corporate support', 0, 'verified',  '2026-02-15 11:00:00'),
-(19, 4,  3, 2000000,  'e_wallet',      '', 0, 'verified',  '2026-03-01 09:00:00'),
+(16, 9,  3, 10000000, 'bank_transfer', 'one_time',  'Clean water is a basic right', 0, 'verified',  '2026-01-20 10:00:00'),
+(17, 5,  3, 5000000,  'bank_transfer', 'quarterly', '', 0, 'verified',  '2026-02-01 14:30:00'),
+(18, 13, 3, 20000000, 'bank_transfer', 'one_time',  'Full corporate support', 0, 'verified',  '2026-02-15 11:00:00'),
+(19, 4,  3, 2000000,  'e_wallet',      'monthly',   '', 0, 'verified',  '2026-03-01 09:00:00'),
 
 -- Campaign 4: Scholarships
-(20, 7,  4, 3000000,  'bank_transfer', 'Invest in young minds', 0, 'verified',  '2026-03-10 10:00:00'),
-(21, 10, 4, 2000000,  'bank_transfer', '', 0, 'verified',  '2026-03-20 14:00:00'),
-(22, 11, 4, 4000000,  'credit_card',   'For a brighter future', 0, 'verified',  '2026-04-05 11:30:00'),
-(23, 8,  4, 1500000,  'e_wallet',      '', 0, 'pending',   '2026-10-02 07:30:00'),
+(20, 7,  4, 3000000,  'bank_transfer', 'monthly',   'Invest in young minds', 0, 'verified',  '2026-03-10 10:00:00'),
+(21, 10, 4, 2000000,  'bank_transfer', 'one_time',  '', 0, 'verified',  '2026-03-20 14:00:00'),
+(22, 11, 4, 4000000,  'credit_card',   'one_time',  'For a brighter future', 0, 'verified',  '2026-04-05 11:30:00'),
+(23, 8,  4, 1500000,  'e_wallet',      'monthly',   '', 0, 'pending',   '2026-10-02 07:30:00'),
 
 -- Campaign 5: Elderly Care
-(24, 6,  5, 1000000,  'e_wallet',      'For the elderly', 0, 'verified',  '2026-04-10 09:00:00'),
-(25, 12, 5, 2000000,  'bank_transfer', '', 0, 'verified',  '2026-04-15 14:00:00'),
-(26, 4,  5, 500000,   'e_wallet',      '', 0, 'verified',  '2026-05-01 10:00:00'),
-(27, 5,  5, NULL, NULL, NULL, 0, 'pending', '2026-10-02 06:00:00'),
+(24, 6,  5, 1000000,  'e_wallet',      'monthly',   'For the elderly', 0, 'verified',  '2026-04-10 09:00:00'),
+(25, 12, 5, 2000000,  'bank_transfer', 'quarterly', '', 0, 'verified',  '2026-04-15 14:00:00'),
+(26, 4,  5, 500000,   'e_wallet',      'monthly',   '', 0, 'verified',  '2026-05-01 10:00:00'),
+(27, 5,  5, 2000000,  'bank_transfer', 'monthly',   '', 0, 'pending',   '2026-10-02 06:00:00'),
 
 -- Campaign 6: Disaster Relief
-(28, 9,  6, 5000000,  'bank_transfer', 'Help flood victims', 0, 'verified',  '2026-01-25 10:00:00'),
-(29, 13, 6, 20000000, 'bank_transfer', 'Emergency corporate support', 0, 'verified',  '2026-02-05 11:00:00'),
-(30, 7,  6, 3000000,  'bank_transfer', '', 0, 'verified',  '2026-02-10 14:30:00'),
-(31, 10, 6, 2000000,  'e_wallet',      '', 0, 'verified',  '2026-03-01 09:00:00'),
-(32, 11, 6, 4000000,  'bank_transfer', 'Disaster response', 0, 'verified',  '2026-03-15 11:00:00'),
-(33, 12, 6, 9000000,  'credit_card',   '', 0, 'pending',   '2026-10-02 08:30:00');
-
--- Fix NULL donation
-UPDATE donations SET amount=2000000, channel='bank_transfer' WHERE id=27;
+(28, 9,  6, 5000000,  'bank_transfer', 'one_time',  'Help flood victims', 0, 'verified',  '2026-01-25 10:00:00'),
+(29, 13, 6, 20000000, 'bank_transfer', 'yearly',    'Emergency corporate support', 0, 'verified',  '2026-02-05 11:00:00'),
+(30, 7,  6, 3000000,  'bank_transfer', 'one_time',  '', 0, 'verified',  '2026-02-10 14:30:00'),
+(31, 10, 6, 2000000,  'e_wallet',      'one_time',  '', 0, 'verified',  '2026-03-01 09:00:00'),
+(32, 11, 6, 4000000,  'bank_transfer', 'monthly',   'Disaster response', 0, 'verified',  '2026-03-15 11:00:00'),
+(33, 12, 6, 9000000,  'credit_card',   'one_time',  '', 0, 'pending',   '2026-10-02 08:30:00');
 
 -- =====================================================
 -- TRANSACTIONS

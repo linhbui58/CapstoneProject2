@@ -78,6 +78,14 @@ $fund_util_rate   = $total_raised_f > 0 ? round(($total_alloc_f / $total_raised_
 $unallocated      = max(0, $total_raised_f - $total_alloc_f);
 
 // KPI-5: Acknowledgement turnaround time (hours) — already computed as $ack_time
+
+// KPI-6: Recurring donation rate — donors who have at least one recurring donation
+$db->query("ALTER TABLE donations ADD COLUMN IF NOT EXISTS frequency ENUM('one_time','monthly','quarterly','yearly') NOT NULL DEFAULT 'one_time' AFTER channel");
+$total_donors_verified = (int)$db->query("SELECT COUNT(DISTINCT donor_id) as c FROM donations WHERE status='verified'")->fetch_assoc()['c'];
+$recurring_donors      = (int)$db->query("SELECT COUNT(DISTINCT donor_id) as c FROM donations WHERE frequency != 'one_time' AND status='verified'")->fetch_assoc()['c'];
+$recurring_donor_rate  = $total_donors_verified > 0 ? round(($recurring_donors / $total_donors_verified) * 100, 1) : 0;
+$recurring_revenue     = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE frequency != 'one_time' AND status='verified'")->fetch_assoc()['t'];
+$recurring_by_freq     = $db->query("SELECT frequency, COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM donations WHERE frequency != 'one_time' AND status='verified' GROUP BY frequency ORDER BY total DESC");
 // Average hours from donation submission to verification
 ?>
 
@@ -126,7 +134,7 @@ $unallocated      = max(0, $total_raised_f - $total_alloc_f);
         <span style="background:#dbeafe;color:#1447c0;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;">Evaluation rubric metrics</span>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:13px;">
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:13px;">
 
         <!-- KPI-1: Campaign Target-Attainment Rate -->
         <?php
@@ -207,8 +215,59 @@ $unallocated      = max(0, $total_raised_f - $total_alloc_f);
             </span>
         </div>
 
+        <!-- KPI-6: Recurring Donor Rate -->
+        <?php
+        $kpi6_color = $recurring_donor_rate >= 40 ? '#15803d' : ($recurring_donor_rate >= 20 ? '#d97706' : '#dc2626');
+        $kpi6_bg    = $recurring_donor_rate >= 40 ? '#dcfce7'  : ($recurring_donor_rate >= 20 ? '#fef9c3'  : '#fee2e2');
+        ?>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi6_bg ?>;"></div>
+            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi6_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="bi bi-arrow-repeat" style="color:<?= $kpi6_color ?>;font-size:.88rem;"></i>
+            </div>
+            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi6_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $recurring_donor_rate ?>%</div>
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Recurring Donor Rate 🔄</div>
+            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= $recurring_donors ?> of <?= $total_donors_verified ?> donors on recurring plan</div>
+            <div style="font-size:.67rem;font-weight:700;color:<?= $kpi6_color ?>;margin-top:4px;"><?= number_format($recurring_revenue/1000000,1) ?>M VND recurring</div>
+        </div>
+
     </div>
 </div>
+
+<!-- Recurring Donation Breakdown -->
+<?php if ($recurring_by_freq && $recurring_by_freq->num_rows > 0): ?>
+<div style="background:white;border:1.5px solid #bbf7d0;border-radius:16px;padding:20px 24px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.04);">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <span style="width:28px;height:28px;background:#dcfce7;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+            <i class="bi bi-arrow-repeat" style="color:#15803d;font-size:.78rem;"></i>
+        </span>
+        <span style="font-size:.9rem;font-weight:700;color:#0f172a;">Recurring Donations by Frequency</span>
+        <span style="background:#dcfce7;color:#15803d;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;">Donor retention metric</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+        <?php
+        $freq_detail_cfg = [
+            'monthly'   => ['Monthly',   '#dcfce7','#15803d','bi-calendar-month'],
+            'quarterly' => ['Quarterly', '#dbeafe','#1447c0','bi-calendar3'],
+            'yearly'    => ['Yearly',    '#ede9fe','#7c3aed','bi-calendar-check'],
+        ];
+        $recurring_by_freq->data_seek(0);
+        while ($rf = $recurring_by_freq->fetch_assoc()):
+            $rc = $freq_detail_cfg[$rf['frequency']] ?? ['Recurring','#f1f5f9','#475569','bi-calendar'];
+        ?>
+        <div style="background:<?= $rc[1] ?>;border:1.5px solid <?= $rc[1] ?>;border-radius:12px;padding:14px 16px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <i class="bi <?= $rc[3] ?>" style="color:<?= $rc[2] ?>;font-size:1.1rem;"></i>
+                <span style="font-size:.8rem;font-weight:700;color:<?= $rc[2] ?>;"><?= $rc[0] ?></span>
+            </div>
+            <div style="font-size:1.4rem;font-weight:900;color:<?= $rc[2] ?>;letter-spacing:-.02em;"><?= $rf['cnt'] ?></div>
+            <div style="font-size:.7rem;color:<?= $rc[2] ?>;opacity:.8;">donations</div>
+            <div style="font-size:.78rem;font-weight:700;color:<?= $rc[2] ?>;margin-top:4px;"><?= number_format((float)$rf['total']/1000000,1) ?>M VND</div>
+        </div>
+        <?php endwhile; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="row g-4 mb-4">
     <!-- Monthly Chart -->
