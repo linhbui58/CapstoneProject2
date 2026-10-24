@@ -147,7 +147,7 @@ try {
         'vnp_TmnCode' => $config['tmn_code'],
         'vnp_Amount' => (string) ($amount * 100),
         'vnp_CurrCode' => 'VND',
-        'vnp_BankCode' => 'INTCARD',
+        'vnp_BankCode' => 'VNBANK',
         'vnp_TxnRef' => $referenceCode,
         'vnp_OrderInfo' => 'Donation ' . $donationId,
         'vnp_OrderType' => 'other',

@@ -105,7 +105,7 @@ return [
 ];
 ```
 
-Use the sandbox credentials and test gateway first. Before going live, replace them with the live merchant credentials and set `mode` to `live`. Register `https://your-domain/donor/vnpay_ipn.php` as the IPN URL in the VNPay merchant portal. The return URL is generated from the application's `SITE_URL`; use the site's public HTTPS address. The private config file is excluded from Git and deployment uploads. Card entry and processing take place on VNPay; this application never collects or stores card numbers. The card option requests VNPay's international card method (`INTCARD`), and availability depends on the merchant account. VNPay card donations must be at least 5,000 VND.
+Use the sandbox credentials and test gateway first. Before going live, replace them with the live merchant credentials and set `mode` to `live`. Register `https://vcf-transaction-system.wuaze.com/donor/vnpay_ipn.php` as the IPN URL in the VNPay merchant portal. The return URL is generated from the application's `SITE_URL`; use the site's public HTTPS address. The private config file is excluded from Git and deployment uploads. Card entry and processing take place on VNPay; this application never collects or stores card numbers. The card option requests VNPay's domestic bank-card method (`VNBANK`); payment methods depend on the merchant account. VNPay card donations must be at least 5,000 VND.
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 

@@ -147,6 +147,9 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
     <div id="cardPaymentPanel" style="display:none;background:white;border:1px solid #cbd5e1;border-radius:12px;padding:18px;margin-bottom:16px;">
         <div style="font-size:.9rem;font-weight:700;color:#0f172a;margin-bottom:5px;">Secure credit card payment</div>
         <div style="font-size:.76rem;color:#64748b;margin-bottom:13px;">You will be redirected to VNPay to complete payment using an eligible card. This website does not collect card details.</div>
+        <button type="submit" id="cardDonateButton" style="width:100%;padding:13px;background:#1447c0;color:white;border:0;border-radius:9px;font-weight:700;font-size:.9rem;cursor:pointer;">
+            <i class="bi bi-credit-card me-2"></i>Pay by Credit Card
+        </button>
         <div id="cardPaymentStatus" role="status" aria-live="polite" style="display:none;margin-top:12px;padding:11px;border-radius:8px;font-size:.8rem;"></div>
     </div>
 
@@ -390,6 +393,7 @@ const vnpayEndpoint = <?= json_encode(SITE_URL . '/donor/vnpay_checkout.php') ?>
 const vnpayReady = <?= json_encode($vnpayReady) ?>;
 const donationForm = document.getElementById('donateForm');
 const bankDonateButton = document.getElementById('bankDonateButton');
+const cardDonateButton = document.getElementById('cardDonateButton');
 const cardPaymentPanel = document.getElementById('cardPaymentPanel');
 let qrCreated = false;
 
@@ -401,9 +405,6 @@ function setPaymentMethodUI() {
     const method = getPaymentMethod();
     const bankTransfer = method === 'bank_transfer';
     document.getElementById('amountInput').min = bankTransfer ? '1' : '5000';
-    bankDonateButton.innerHTML = bankTransfer
-        ? '<i class="bi bi-qr-code" style="font-size:.9rem;"></i>Create QR Code / Donate'
-        : '<i class="bi bi-credit-card" style="font-size:.9rem;"></i>Continue to Secure Card Payment';
     const paymentLabels = document.querySelectorAll('.payment-method-label');
     paymentLabels.forEach(label => {
         const input = label.querySelector('input');
@@ -414,6 +415,7 @@ function setPaymentMethodUI() {
     });
 
     bankDonateButton.style.display = bankTransfer ? 'flex' : 'none';
+    cardDonateButton.style.display = bankTransfer ? 'none' : 'block';
     document.getElementById('qrPanel').style.display = bankTransfer && qrCreated ? 'block' : 'none';
     cardPaymentPanel.style.display = bankTransfer ? 'none' : 'block';
     document.getElementById('summChannel').textContent = method === 'credit_card' ? 'Credit Card via VNPay' : 'Bank Transfer';
