@@ -51,10 +51,19 @@ $amount = (int) $amountInput;
 $vietQrConfigPath = dirname(__DIR__) . '/config/vietqr.php';
 $vietQrConfig = [];
 if (is_file($vietQrConfigPath)) {
-    $loadedConfig = require $vietQrConfigPath;
-    if (!is_array($loadedConfig)) {
-        error_log('VietQR configuration must return an array.');
-        respond(500, ['error' => 'VietQR configuration is invalid.']);
+    ob_start();
+    try {
+        $loadedConfig = require $vietQrConfigPath;
+        $configOutput = ob_get_clean();
+    } catch (Throwable $exception) {
+        ob_end_clean();
+        error_log('VietQR configuration could not be loaded: ' . $exception->getMessage());
+        respond(500, ['error' => 'The VietQR configuration file has invalid PHP syntax. Check config/vietqr.php.']);
+    }
+
+    if ($configOutput !== '' || !is_array($loadedConfig)) {
+        error_log('VietQR configuration must return an array without producing output.');
+        respond(500, ['error' => 'VietQR configuration is invalid. Check the PHP opening tag and returned array in config/vietqr.php.']);
     }
     $vietQrConfig = $loadedConfig;
 }
@@ -152,5 +161,5 @@ try {
         $pdo->rollBack();
     }
     error_log('QR donation creation failed: ' . $exception->getMessage());
-    respond(500, ['error' => 'Unable to create the donation right now. Please try again.']);
+    respond(500, ['error' => 'The donation could not be saved. Check the hosting PHP error log for the database or transaction error.']);
 }

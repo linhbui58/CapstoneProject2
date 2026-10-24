@@ -403,8 +403,16 @@ document.getElementById('donateForm').addEventListener('submit', async function 
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Unable to create the QR code.');
+        const responseText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch {
+            throw new Error(`The server returned an invalid response (HTTP ${response.status}). Check the hosting PHP error log.`);
+        }
+        if (!response.ok) {
+            throw new Error(result.error || `Unable to create the donation (HTTP ${response.status}).`);
+        }
 
         document.getElementById('donationQr').src = result.qr_url;
         document.getElementById('qrBankDetails').textContent = `${result.bank_name} · ${result.account_number}`;
