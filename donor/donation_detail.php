@@ -168,7 +168,11 @@ $history = $db->query("
                     Your donation of <strong><?= formatCurrency($donation['amount']) ?></strong>
                     has been successfully verified and recorded.
                 </p>
-                <div class="small text-muted">Thank you for your generous contribution! 🙏</div>
+                <div class="small text-muted mb-3">Thank you for your generous contribution!</div>
+                <a href="<?= SITE_URL ?>/donor/receipt.php?id=<?= (int)$donation['id'] ?>"
+                   class="btn btn-outline-success" target="_blank" rel="noopener">
+                    <i class="bi bi-printer me-1"></i>Print / Save Receipt as PDF
+                </a>
             </div>
         </div>
         <?php endif; ?>
