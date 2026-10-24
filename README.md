@@ -95,27 +95,6 @@ VIETQR_ACCOUNT_NAME=your_fund_account_name
 
 Do not commit database credentials or the fund account configuration to the repository.
 
-### SMTP email acknowledgements
-
-Install the PHPMailer dependency with `composer install`, then configure these
-environment variables for the PHP/Apache process to send a donor thank-you email
-after a finance staff member verifies a donation:
-
-```text
-SMTP_HOST=your_smtp_host
-SMTP_PORT=587
-SMTP_USERNAME=your_smtp_username
-SMTP_PASSWORD=your_smtp_password
-SMTP_ENCRYPTION=tls
-SMTP_FROM_EMAIL=your_verified_sender_email
-SMTP_FROM_NAME=VinaCapital Foundation
-```
-
-Use `SMTP_ENCRYPTION=ssl` with the SMTP port supplied by your provider when
-implicit TLS is required. Never commit SMTP credentials. If sending fails, the
-verification and in-app notification remain successful, and the donor can still
-access the receipt from My Donations.
-
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
 ### Step 5: Run the Application
@@ -137,15 +116,6 @@ http://localhost/CapstoneProject2/
 | Manager        | Management functions                     |
 
 The available functions depend on the current implementation.
-
-### Donor acknowledgement
-
-When Finance Staff verifies a donation, the donor receives an in-app confirmation.
-If SMTP is configured, a thank-you email with donation details and a signed-in-only
-receipt link is sent as well.
-The donor can open **My Donations > View Details** and print the acknowledgement
-or save it as a PDF. Receipts are available only for verified donations belonging
-to the signed-in donor.
 
 ## 8. Git Workflow
 

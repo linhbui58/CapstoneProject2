@@ -2,7 +2,6 @@
 $pageTitle  = 'Create New Transaction';
 $activePage = 'transactions';
 require_once dirname(__DIR__) . '/includes/header.php';
-require_once dirname(__DIR__) . '/includes/donation_acknowledgement.php';
 requireRole('finance_staff');
 
 $db  = getDB();
@@ -73,37 +72,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $camp_esc = $db->real_escape_string($camp_name);
         $db->query("INSERT INTO notifications (user_id, title, message, type)
                     VALUES ($donor_id, 'Donation Verified ✓',
-                    'Your donation of " . formatCurrency($amount) . " to \"$camp_esc\" has been recorded and verified by Finance Staff. Thank you! Your printable receipt is ready under My Donations > View Details.',
+                    'Your donation of " . formatCurrency($amount) . " to \"$camp_esc\" has been recorded and verified by Finance Staff. Thank you!',
                     'confirmation')");
 
-        $emailStatusMessage = '';
-        try {
-            $emailResult = $db->query("
-                SELECT d.id AS donation_id, d.amount, d.created_at AS donation_date,
-                       t.reference_code, u.name AS donor_name, u.email AS donor_email,
-                       c.title AS campaign_title
-                FROM donations d
-                JOIN transactions t ON t.donation_id = d.id
-                JOIN users u ON u.id = d.donor_id
-                LEFT JOIN campaigns c ON c.id = d.campaign_id
-                WHERE t.id = $txn_id AND t.verification_status = 'verified'
-                LIMIT 1
-            ");
-            if (!$emailResult) {
-                throw new RuntimeException('Unable to load verified donation details for email.');
-            }
-            $emailData = $emailResult->fetch_assoc();
-            if (!$emailData) {
-                throw new RuntimeException('Verified donation details were not found for email.');
-            }
-            sendDonationAcknowledgement($emailData);
-            $emailStatusMessage = ' A thank-you email was sent to the donor.';
-        } catch (Throwable $emailException) {
-            error_log('Donation acknowledgement email failed for transaction ' . $txn_id . ': ' . $emailException->getMessage());
-            $emailStatusMessage = ' The in-app notification and receipt are available, but the thank-you email could not be sent. Check mail configuration.';
-        }
-
-        setFlash('success', 'Transaction TX-' . str_pad($txn_id,4,'0',STR_PAD_LEFT) . ' created and verified successfully.' . $emailStatusMessage);
+        setFlash('success', 'Transaction TX-' . str_pad($txn_id,4,'0',STR_PAD_LEFT) . ' created and verified successfully.');
         redirect(SITE_URL . '/finance_staff/transactions.php');
     }
 }
