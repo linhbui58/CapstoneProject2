@@ -3,14 +3,8 @@ $pageTitle  = 'Verify Transaction';
 $activePage = 'verify';
 require_once dirname(__DIR__) . '/includes/header.php';
 require_once dirname(__DIR__) . '/includes/pdo.php';
+require_once dirname(__DIR__) . '/includes/donation_acknowledgement.php';
 requireRole('finance_staff');
-
-if (!function_exists('sendDonationEmail')) {
-    function sendDonationEmail(string $donorEmail): bool
-    {
-        return true;
-    }
-}
 
 $db  = getDB();
 $uid = $user['id'];
@@ -122,13 +116,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notificationMessage = "Dear {$donorFirst}, your donation of " . formatCurrency($txn['amount'])
                     . " to \"{$campaignName}\" has been verified and recorded. "
                     . "Thanks to supporters like you, this campaign has now reached {$newPercent}% of its fundraising goal. "
-                    . 'Your generosity makes a real difference. Thank you!';
+                    . 'Your generosity makes a real difference. Thank you! Your printable receipt is ready under My Donations > View Details.';
             } else {
                 $notificationMessage = 'Dear ' . $donorFirst . ', your donation of ' . formatCurrency($txn['amount'])
-                    . ' has been verified and recorded successfully. Thank you for your generous contribution.';
+                    . ' has been verified and recorded successfully. Thank you for your generous contribution! '
+                    . 'Your printable receipt is ready under My Donations > View Details.';
             }
             $notificationType = 'confirmation';
-            $flashMessage = 'Transaction verified successfully!';
+            $flashMessage = 'Transaction verified. The donor was notified and can print or save the receipt from My Donations.';
         } else {
             $notificationMessage = 'Your donation of ' . formatCurrency($txn['amount']) . ' was rejected. Reason: ' . $rejection_reason;
             $notificationType = 'rejection';
@@ -162,11 +157,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'verified') {
             try {
-                sendDonationEmail($txn['donor_email']);
+                sendDonationAcknowledgement($txn);
+                $flashMessage .= ' A thank-you email was sent to the donor.';
             } catch (Throwable $emailException) {
-                error_log('Donation confirmation email failed: ' . $emailException->getMessage());
+                error_log('Donation acknowledgement email failed for transaction ' . $id . ': ' . $emailException->getMessage());
+                $flashMessage .= ' The in-app notification and receipt are available, but the thank-you email could not be sent. Check mail configuration.';
             }
         }
+
         setFlash($action === 'verified' ? 'success' : 'warning', $flashMessage);
         redirect(SITE_URL . '/finance_staff/pending.php');
     } catch (Throwable $exception) {
