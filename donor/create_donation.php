@@ -90,7 +90,9 @@ if (!preg_match('/^[A-Z0-9]{2,20}$/', $bankId) || !preg_match('/^[0-9]{6,30}$/',
 }
 
 try {
+    $failureStage = 'connecting to the database';
     $pdo = getPDO();
+    $failureStage = 'checking the selected campaign';
     $campaignQuery = $pdo->prepare("SELECT id FROM campaigns WHERE id = :id AND status = 'active' LIMIT 1");
     $campaignQuery->execute(['id' => $campaignId]);
     if (!$campaignQuery->fetch()) {
@@ -99,7 +101,9 @@ try {
 
     $transferInfo = sprintf('DONATE %d %d', $campaignId, $donorId);
 
+    $failureStage = 'starting the donation transaction';
     $pdo->beginTransaction();
+    $failureStage = 'saving the donation';
     $donationInsert = $pdo->prepare(
         "INSERT INTO donations (donor_id, campaign_id, amount, channel, message, is_anonymous, status)
          VALUES (:donor_id, :campaign_id, :amount, 'bank_transfer', :message, :is_anonymous, 'pending')"
@@ -113,6 +117,7 @@ try {
     ]);
     $donationId = (int) $pdo->lastInsertId();
 
+    $failureStage = 'saving the bank transaction';
     $transactionInsert = $pdo->prepare(
         "INSERT INTO transactions
             (donation_id, reference_code, bank_name, account_number, amount_transferred, verification_status)
@@ -126,6 +131,7 @@ try {
     ]);
     $transactionId = (int) $pdo->lastInsertId();
 
+    $failureStage = 'saving the verification history';
     $historyInsert = $pdo->prepare(
         "INSERT INTO verification_history (transaction_id, action, performed_by, old_status, new_status, notes)
          VALUES (:transaction_id, 'submitted', :performed_by, NULL, 'pending_verification', :notes)"
@@ -135,6 +141,7 @@ try {
         'performed_by' => $donorId,
         'notes' => 'Donation submitted through VietQR.',
     ]);
+    $failureStage = 'committing the donation transaction';
     $pdo->commit();
 
     $qrPath = sprintf(
@@ -160,6 +167,22 @@ try {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    error_log('QR donation creation failed: ' . $exception->getMessage());
-    respond(500, ['error' => 'The donation could not be saved. Check the hosting PHP error log for the database or transaction error.']);
+    $errorCode = $exception instanceof PDOException ? (string) $exception->getCode() : 'internal';
+    $errorCode = preg_match('/^[A-Za-z0-9_-]{1,32}$/', $errorCode) ? $errorCode : 'unknown';
+    $errorReference = bin2hex(random_bytes(4));
+    error_log(sprintf(
+        'QR donation creation failed [%s] while %s (code %s): %s',
+        $errorReference,
+        $failureStage ?? 'processing the request',
+        $errorCode,
+        $exception->getMessage()
+    ));
+    respond(500, [
+        'error' => sprintf(
+            'Failed while %s (error code %s, reference %s).',
+            $failureStage ?? 'processing the donation',
+            $errorCode,
+            $errorReference
+        ),
+    ]);
 }
