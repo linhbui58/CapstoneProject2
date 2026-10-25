@@ -6,30 +6,45 @@ requireRole('manager');
 
 $db = getDB();
 
-// Overall stats
-$total_raised    = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];
-$total_donors    = $db->query("SELECT COUNT(DISTINCT donor_id) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];
-$total_campaigns = $db->query("SELECT COUNT(*) as t FROM campaigns")->fetch_assoc()['t'];
-$active_campaigns= $db->query("SELECT COUNT(*) as t FROM campaigns WHERE status='active'")->fetch_assoc()['t'];
-$verified_txns   = $db->query("SELECT COUNT(*) as t FROM transactions WHERE verification_status='verified'")->fetch_assoc()['t'];
-$rejected_txns   = $db->query("SELECT COUNT(*) as t FROM transactions WHERE verification_status='rejected'")->fetch_assoc()['t'];
-$total_allocated = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations")->fetch_assoc()['t'];
-$avg_donation    = $db->query("SELECT COALESCE(AVG(amount),0) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];
+// Use verified donation records as the source of truth for fundraising totals.
+$total_raised = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];
+$total_donors = (int)$db->query("SELECT COUNT(DISTINCT donor_id) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];
+$campaign_counts = $db->query("SELECT COUNT(*) as total, SUM(status='active') as active FROM campaigns")->fetch_assoc();
+$total_campaigns = (int)$campaign_counts['total'];
+$active_campaigns = (int)$campaign_counts['active'];
+$verified_txns = (int)$db->query("SELECT COUNT(*) as t FROM transactions WHERE verification_status='verified'")->fetch_assoc()['t'];
+$pending_txns = (int)$db->query("SELECT COUNT(*) as t FROM transactions WHERE verification_status='pending_verification'")->fetch_assoc()['t'];
+$rejected_txns = (int)$db->query("SELECT COUNT(*) as t FROM transactions WHERE verification_status='rejected'")->fetch_assoc()['t'];
+$total_allocated = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations")->fetch_assoc()['t'];
+$avg_donation_val = (float)$db->query("SELECT COALESCE(AVG(amount),0) as avg FROM donations WHERE status='verified'")->fetch_assoc()['avg'];
+$campaign_verified_raised = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE status='verified' AND campaign_id IS NOT NULL")->fetch_assoc()['t'];
+$allocation_difference = $total_allocated - $campaign_verified_raised;
 
 // Campaign performance
 $camp_perf = $db->query("
-    SELECT c.title, c.target_amount, c.raised_amount, c.status,
-           COUNT(d.id) as donations,
-           ROUND((c.raised_amount/c.target_amount)*100,1) as pct,
-           SUM(fa.amount) as allocated
+    SELECT c.id, c.title, c.target_amount, c.status,
+           COALESCE(d.donation_count,0) as donations,
+           COALESCE(d.verified_raised,0) as raised_amount,
+           CASE WHEN c.target_amount > 0
+                THEN ROUND(COALESCE(d.verified_raised,0) / c.target_amount * 100,1)
+                ELSE 0 END as pct,
+           COALESCE(fa.allocated,0) as allocated
     FROM campaigns c
-    LEFT JOIN donations d ON d.campaign_id=c.id AND d.status='verified'
-    LEFT JOIN fund_allocations fa ON fa.campaign_id=c.id
-    GROUP BY c.id
-    ORDER BY c.raised_amount DESC
+    LEFT JOIN (
+        SELECT campaign_id, COUNT(*) as donation_count, SUM(amount) as verified_raised
+        FROM donations
+        WHERE status='verified' AND campaign_id IS NOT NULL
+        GROUP BY campaign_id
+    ) d ON d.campaign_id=c.id
+    LEFT JOIN (
+        SELECT campaign_id, SUM(amount) as allocated
+        FROM fund_allocations
+        GROUP BY campaign_id
+    ) fa ON fa.campaign_id=c.id
+    ORDER BY raised_amount DESC, c.title ASC
 ");
 
-// Monthly trend (12 months)
+// Monthly trend for the last 12 months.
 $monthly = $db->query("
     SELECT DATE_FORMAT(created_at,'%b %Y') as label,
            DATE_FORMAT(created_at,'%Y-%m') as ym,
@@ -37,6 +52,7 @@ $monthly = $db->query("
            COALESCE(SUM(amount),0) as total
     FROM donations WHERE status='verified'
       AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+      AND created_at <= NOW()
     GROUP BY ym, label ORDER BY ym ASC
 ");
 $m_labels=[]; $m_amounts=[]; $m_counts=[];
@@ -54,248 +70,240 @@ if ($channels) { while($c=$channels->fetch_assoc()) { $ch_labels[]=ucfirst(str_r
 // Donor retention
 $repeat_donors = $db->query("SELECT COUNT(*) as cnt FROM (SELECT donor_id FROM donations WHERE status='verified' GROUP BY donor_id HAVING COUNT(*)>1) t")->fetch_assoc()['cnt'];
 $retention_rate = $total_donors > 0 ? round(($repeat_donors/$total_donors)*100,1) : 0;
-$ack_time = $db->query("SELECT COALESCE(AVG(TIMESTAMPDIFF(HOUR,d.created_at,t.verified_at)),0) as avg FROM transactions t JOIN donations d ON t.donation_id=d.id WHERE t.verification_status='verified' AND t.verified_at IS NOT NULL")->fetch_assoc()['avg'];
+$ack_time = $db->query("SELECT COALESCE(AVG(TIMESTAMPDIFF(SECOND,d.created_at,t.verified_at) / 3600),0) as avg FROM transactions t JOIN donations d ON t.donation_id=d.id WHERE t.verification_status='verified' AND t.verified_at IS NOT NULL")->fetch_assoc()['avg'];
 
-// ── KPI Metrics (per assignment rubric) ──────────────────────────────────────
-
-// KPI-1: Campaign target-attainment rate
-// % of active/completed campaigns that have reached ≥100% of their target
-$total_camps_eval = (int)$db->query("SELECT COUNT(*) as c FROM campaigns WHERE status IN ('active','completed')")->fetch_assoc()['c'];
-$reached_target   = (int)$db->query("SELECT COUNT(*) as c FROM campaigns WHERE status IN ('active','completed') AND raised_amount >= target_amount")->fetch_assoc()['c'];
+$campaign_target_stats = $db->query("
+    SELECT COUNT(*) as total,
+           COALESCE(SUM(CASE WHEN COALESCE(d.verified_raised,0) >= c.target_amount THEN 1 ELSE 0 END),0) as reached
+    FROM campaigns c
+    LEFT JOIN (
+        SELECT campaign_id, SUM(amount) as verified_raised
+        FROM donations
+        WHERE status='verified' AND campaign_id IS NOT NULL
+        GROUP BY campaign_id
+    ) d ON d.campaign_id=c.id
+    WHERE c.status IN ('active','completed')
+")->fetch_assoc();
+$total_camps_eval = (int)$campaign_target_stats['total'];
+$reached_target = (int)$campaign_target_stats['reached'];
 $target_attainment = $total_camps_eval > 0 ? round(($reached_target / $total_camps_eval) * 100, 1) : 0;
 
-// KPI-2: Donor retention / repeat-donation rate (already computed above as $retention_rate)
-// Shown again as KPI card with context
-
-// KPI-3: Average donation value (VND) — verified donations only
-$avg_donation_val = $db->query("SELECT COALESCE(AVG(amount),0) as avg FROM donations WHERE status='verified'")->fetch_assoc()['avg'];
-
-// KPI-4: Fund utilization transparency rate
-// % of raised funds that have been allocated to a purpose
-$total_raised_f   = (float)$db->query("SELECT COALESCE(SUM(raised_amount),0) as t FROM campaigns")->fetch_assoc()['t'];
-$total_alloc_f    = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations")->fetch_assoc()['t'];
-$fund_util_rate   = $total_raised_f > 0 ? round(($total_alloc_f / $total_raised_f) * 100, 1) : 0;
-$unallocated      = max(0, $total_raised_f - $total_alloc_f);
-
-// KPI-5: Acknowledgement turnaround time (hours) — already computed as $ack_time
-
-// KPI-6: Recurring donation rate — donors who have at least one recurring donation
-$db->query("ALTER TABLE donations ADD COLUMN IF NOT EXISTS frequency ENUM('one_time','monthly','quarterly','yearly') NOT NULL DEFAULT 'one_time' AFTER channel");
-$total_donors_verified = (int)$db->query("SELECT COUNT(DISTINCT donor_id) as c FROM donations WHERE status='verified'")->fetch_assoc()['c'];
+$total_donors_verified = $total_donors;
 $recurring_donors      = (int)$db->query("SELECT COUNT(DISTINCT donor_id) as c FROM donations WHERE frequency != 'one_time' AND status='verified'")->fetch_assoc()['c'];
 $recurring_donor_rate  = $total_donors_verified > 0 ? round(($recurring_donors / $total_donors_verified) * 100, 1) : 0;
 $recurring_revenue     = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE frequency != 'one_time' AND status='verified'")->fetch_assoc()['t'];
-$recurring_by_freq     = $db->query("SELECT frequency, COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM donations WHERE frequency != 'one_time' AND status='verified' GROUP BY frequency ORDER BY total DESC");
+$allocation_rows = $db->query("SELECT status, COUNT(*) as cnt, COALESCE(SUM(amount),0) as total FROM fund_allocations GROUP BY status");
+$allocation_by_status = [];
+while ($allocation = $allocation_rows->fetch_assoc()) {
+    $allocation_by_status[$allocation['status']] = [
+        'count' => (int)$allocation['cnt'],
+        'total' => (float)$allocation['total'],
+    ];
+}
+$allocation_status_labels = ['planned' => 'planned', 'disbursed' => 'disbursed', 'completed' => 'completed'];
+$allocation_status_summary = [];
+foreach ($allocation_status_labels as $status => $label) {
+    if (isset($allocation_by_status[$status])) {
+        $status_data = $allocation_by_status[$status];
+        $allocation_status_summary[] = $status_data['count'] . ' ' . $label . ' (' . formatCurrency($status_data['total']) . ')';
+    }
+}
+$allocation_status_summary = $allocation_status_summary ? implode(', ', $allocation_status_summary) : 'No allocation records';
+$allocation_comparison = abs($allocation_difference) < 0.01
+    ? 'Recorded allocations of ' . formatCurrency($total_allocated) . ' match verified campaign-linked donations.'
+    : ($allocation_difference > 0
+        ? 'Recorded allocations of ' . formatCurrency($total_allocated) . ' exceed verified campaign-linked donations of ' . formatCurrency($campaign_verified_raised) . ' by ' . formatCurrency($allocation_difference) . '; review against opening balances or other funding sources.'
+        : 'Verified campaign-linked donations of ' . formatCurrency($campaign_verified_raised) . ' exceed recorded allocations of ' . formatCurrency($total_allocated) . ' by ' . formatCurrency(abs($allocation_difference)) . '; this is not an available-balance figure.');
+$campaign_status_styles = [
+    'active' => 'background:#dcfce7;color:#15803d;border:1px solid #bbf7d0;',
+    'completed' => 'background:#dbeafe;color:#1447c0;border:1px solid #bfdbfe;',
+    'draft' => 'background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;',
+    'closed' => 'background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;',
+];
 // Average hours from donation submission to verification
 ?>
 
-<div class="page-header d-flex justify-content-between align-items-center">
+<style>
+.report-heading { display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px; }
+.report-heading h1 { margin:0;font-size:1.35rem;font-weight:700;color:#172033;letter-spacing:-.02em; }
+.report-heading p { margin:5px 0 0;color:#667085;font-size:.84rem; }
+.report-meta { color:#667085;font-size:.76rem;text-align:right; }
+.report-summary { display:flex;align-items:center;justify-content:space-between;gap:24px;padding:22px 26px;margin-bottom:22px;background:#fff;border:1px solid #e2e6ec;border-radius:10px; }
+.report-summary-label { color:#667085;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em; }
+.report-summary-total { margin-top:6px;color:#172033;font-size:1.9rem;font-weight:700;letter-spacing:-.04em;line-height:1.15; }
+.report-summary-note { margin-top:5px;color:#667085;font-size:.8rem; }
+.report-summary-details { display:flex;gap:34px; }
+.report-summary-detail { min-width:112px;padding-left:22px;border-left:1px solid #e5e7eb; }
+.report-summary-detail strong { display:block;color:#263247;font-size:1.1rem;font-weight:650; }
+.report-summary-detail span { display:block;margin-top:4px;color:#667085;font-size:.75rem; }
+.report-section-title { margin:0;color:#263247;font-size:.95rem;font-weight:650; }
+.report-section-note { margin:4px 0 0;color:#667085;font-size:.76rem; }
+.report-chart-card { height:100%;background:#fff;border:1px solid #e2e6ec;border-radius:10px;overflow:hidden; }
+.report-chart-heading { padding:15px 18px;border-bottom:1px solid #edf0f3; }
+.report-chart-body { min-height:275px;padding:16px 18px;position:relative; }
+.report-chart-body canvas { max-height:240px; }
+.report-table-heading { padding:16px 18px;border-bottom:1px solid #edf0f3; }
+.report-indicators { margin:0 0 20px;background:#fff;border:1px solid #e2e6ec;border-radius:10px;overflow:hidden; }
+.report-indicators-heading { padding:16px 18px;border-bottom:1px solid #edf0f3; }
+.report-indicators table { width:100%;min-width:640px;border-collapse:collapse; }
+.report-indicators th,.report-indicators td { padding:11px 18px;border-bottom:1px solid #f0f2f5;text-align:left;vertical-align:top;font-size:.78rem; }
+.report-indicators th { background:#f8f9fb;color:#667085;font-size:.67rem;font-weight:650;text-transform:uppercase;letter-spacing:.04em; }
+.report-indicators td:first-child { width:25%;color:#344054;font-weight:600; }
+.report-indicators td:nth-child(2) { width:25%;color:#263247;font-weight:600;white-space:nowrap; }
+.report-indicators td:last-child { color:#667085; }
+.report-indicators tr:last-child td { border-bottom:0; }
+.report-footnote { margin:12px 2px 22px;color:#7b8492;font-size:.74rem; }
+@media (max-width:767.98px) {
+    .report-heading { align-items:flex-start; }
+    .report-meta { display:none; }
+    .report-summary { align-items:flex-start;flex-direction:column;gap:18px;padding:18px; }
+    .report-summary-details { width:100%;gap:0; }
+    .report-summary-detail { flex:1;min-width:0;padding-left:12px; }
+    .report-summary-detail:first-child { padding-left:0;border-left:0; }
+}
+@media print {
+    .sidebar,.topbar,.report-print-button,footer { display:none !important; }
+    .page-content { padding:0 !important; }
+    .report-heading { margin-bottom:14px; }
+    .report-summary,.report-chart-card,.table-card { box-shadow:none !important;break-inside:avoid; }
+    .report-chart-body { min-height:230px; }
+    body { background:#fff !important; }
+}
+</style>
+
+<section class="report-heading">
     <div>
-        <h1><i class="bi bi-bar-chart-line me-2 text-danger"></i>Fundraising Reports</h1>
-        <p class="text-muted mb-0">Evidence-based fundraising performance overview</p>
+        <h1>Fundraising Report</h1>
+        <p>All-time verified fundraising totals and campaign performance</p>
     </div>
-    <button onclick="window.print()" class="btn btn-outline-secondary">
-        <i class="bi bi-printer me-2"></i>Print Report
-    </button>
-</div>
+    <div class="d-flex align-items-end gap-3">
+        <div class="report-meta">Generated <?= date('d M Y') ?><br>Figures include verified donations</div>
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm report-print-button">
+            <i class="bi bi-printer me-1"></i>Print
+        </button>
+    </div>
+</section>
 
-<!-- KPI Row -->
-<div class="row g-3 mb-4">
-    <?php $kpis = [
-        ['Total Raised',        formatCurrency($total_raised),   'cash-stack',      'cfe2ff', 'primary'],
-        ['Total Donors',        $total_donors,                    'people',          'd1e7dd', 'success'],
-        ['Avg Donation',        formatCurrency($avg_donation),   'graph-up',        'fff3cd', 'warning'],
-        ['Retention Rate',      $retention_rate.'%',              'arrow-repeat',    'e2d9f3', 'purple'],
-        ['Verified Txns',       $verified_txns,                   'shield-check',    'd1e7dd', 'success'],
-        ['Acknowledgement',     round($ack_time,1).' hrs avg',   'clock',           'f8d7da', 'danger'],
-        ['Total Allocated',     formatCurrency($total_allocated), 'pie-chart',       'd1e7dd', 'success'],
-        ['Active Campaigns',    $active_campaigns.'/'.$total_campaigns,'megaphone', 'cfe2ff', 'primary'],
-    ]; ?>
-    <?php foreach($kpis as $k): ?>
-    <div class="col-6 col-lg-3">
-        <div class="stat-card text-center">
-            <div class="stat-icon mx-auto mb-2" style="background:#<?= $k[3] ?>;">
-                <i class="bi bi-<?= $k[2] ?>" style="color:var(--vcf-<?= $k[4] === 'purple' ? 'primary' : $k[4] ?>);"></i>
-            </div>
-            <div class="stat-value" style="font-size:1rem;"><?= $k[1] ?></div>
-            <div class="stat-label"><?= $k[0] ?></div>
+<section class="report-summary" aria-label="Fundraising summary">
+    <div>
+        <div class="report-summary-label">Total funds raised</div>
+        <div class="report-summary-total"><?= formatCurrency($total_raised) ?></div>
+        <div class="report-summary-note">From donations verified by the finance team</div>
+    </div>
+    <div class="report-summary-details">
+        <div class="report-summary-detail">
+            <strong><?= number_format((int)$total_donors) ?></strong>
+            <span>Donors</span>
+        </div>
+        <div class="report-summary-detail">
+            <strong><?= (int)$active_campaigns ?> of <?= (int)$total_campaigns ?></strong>
+            <span>Active campaigns</span>
         </div>
     </div>
-    <?php endforeach; ?>
-</div>
-
-<!-- ── KPI Performance Indicators ─────────────────────── -->
-<div style="margin-bottom:22px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-        <span style="width:28px;height:28px;background:#dbeafe;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-            <i class="bi bi-speedometer2" style="color:#1447c0;font-size:.78rem;"></i>
-        </span>
-        <span style="font-size:.92rem;font-weight:700;color:#0f172a;">Performance KPIs</span>
-        <span style="background:#dbeafe;color:#1447c0;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;">Evaluation rubric metrics</span>
-    </div>
-
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:13px;">
-
-        <!-- KPI-1: Campaign Target-Attainment Rate -->
-        <?php
-        $kpi1_color = $target_attainment >= 50 ? '#15803d' : ($target_attainment >= 25 ? '#d97706' : '#dc2626');
-        $kpi1_bg    = $target_attainment >= 50 ? '#dcfce7'  : ($target_attainment >= 25 ? '#fef9c3'  : '#fee2e2');
-        ?>
-        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi1_bg ?>;"></div>
-            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi1_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="bi bi-trophy-fill" style="color:<?= $kpi1_color ?>;font-size:.88rem;"></i>
-            </div>
-            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi1_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $target_attainment ?>%</div>
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Target Attainment</div>
-            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= $reached_target ?> of <?= $total_camps_eval ?> campaigns reached 100%</div>
-        </div>
-
-        <!-- KPI-2: Donor Retention Rate -->
-        <?php
-        $kpi2_color = $retention_rate >= 60 ? '#15803d' : ($retention_rate >= 30 ? '#d97706' : '#dc2626');
-        $kpi2_bg    = $retention_rate >= 60 ? '#dcfce7'  : ($retention_rate >= 30 ? '#fef9c3'  : '#fee2e2');
-        ?>
-        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi2_bg ?>;"></div>
-            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi2_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="bi bi-arrow-repeat" style="color:<?= $kpi2_color ?>;font-size:.88rem;"></i>
-            </div>
-            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi2_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $retention_rate ?>%</div>
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Donor Retention</div>
-            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= $repeat_donors ?> of <?= $total_donors ?> donors gave again</div>
-        </div>
-
-        <!-- KPI-3: Average Donation Value -->
-        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#dbeafe;"></div>
-            <div style="width:36px;height:36px;border-radius:10px;background:#dbeafe;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="bi bi-cash-coin" style="color:#1447c0;font-size:.88rem;"></i>
-            </div>
-            <div style="font-size:1.3rem;font-weight:900;color:#1447c0;letter-spacing:-.03em;line-height:1;margin-bottom:4px;"><?= number_format($avg_donation_val/1000000,1) ?>M</div>
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Avg Donation (VND)</div>
-            <div style="font-size:.68rem;color:#64748b;line-height:1.4;">Per verified donation</div>
-        </div>
-
-        <!-- KPI-4: Fund Utilization Transparency Rate -->
-        <?php
-        $kpi4_color = $fund_util_rate >= 70 ? '#15803d' : ($fund_util_rate >= 40 ? '#d97706' : '#dc2626');
-        $kpi4_bg    = $fund_util_rate >= 70 ? '#dcfce7'  : ($fund_util_rate >= 40 ? '#fef9c3'  : '#fee2e2');
-        ?>
-        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi4_bg ?>;"></div>
-            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi4_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="bi bi-pie-chart-fill" style="color:<?= $kpi4_color ?>;font-size:.88rem;"></i>
-            </div>
-            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi4_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $fund_util_rate ?>%</div>
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Fund Utilization</div>
-            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= number_format($total_alloc_f/1000000,1) ?>M of <?= number_format($total_raised_f/1000000,1) ?>M allocated</div>
-            <div style="height:4px;background:#f1f5f9;border-radius:2px;overflow:hidden;margin-top:8px;">
-                <div style="height:100%;width:<?= min(100,$fund_util_rate) ?>%;background:<?= $kpi4_color ?>;border-radius:2px;transition:width .5s;"></div>
-            </div>
-        </div>
-
-        <!-- KPI-5: Acknowledgement Turnaround Time -->
-        <?php
-        $ack_h      = round((float)$ack_time, 1);
-        $kpi5_color = $ack_h <= 24 ? '#15803d' : ($ack_h <= 72 ? '#d97706' : '#dc2626');
-        $kpi5_bg    = $ack_h <= 24 ? '#dcfce7'  : ($ack_h <= 72 ? '#fef9c3'  : '#fee2e2');
-        $kpi5_label = $ack_h <= 24 ? 'Excellent' : ($ack_h <= 72 ? 'Acceptable' : 'Needs attention');
-        ?>
-        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi5_bg ?>;"></div>
-            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi5_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="bi bi-clock-fill" style="color:<?= $kpi5_color ?>;font-size:.88rem;"></i>
-            </div>
-            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi5_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $ack_h ?>h</div>
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Acknowledgement Time</div>
-            <div style="font-size:.68rem;color:#64748b;line-height:1.4;">Avg submission → verified</div>
-            <span style="display:inline-flex;align-items:center;gap:3px;background:<?= $kpi5_bg ?>;border-radius:5px;padding:2px 7px;margin-top:6px;">
-                <span style="font-size:.63rem;font-weight:700;color:<?= $kpi5_color ?>;"><?= $kpi5_label ?></span>
-            </span>
-        </div>
-
-        <!-- KPI-6: Recurring Donor Rate -->
-        <?php
-        $kpi6_color = $recurring_donor_rate >= 40 ? '#15803d' : ($recurring_donor_rate >= 20 ? '#d97706' : '#dc2626');
-        $kpi6_bg    = $recurring_donor_rate >= 40 ? '#dcfce7'  : ($recurring_donor_rate >= 20 ? '#fef9c3'  : '#fee2e2');
-        ?>
-        <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px 14px;box-shadow:0 1px 4px rgba(0,0,0,.04);position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:<?= $kpi6_bg ?>;"></div>
-            <div style="width:36px;height:36px;border-radius:10px;background:<?= $kpi6_bg ?>;display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="bi bi-arrow-repeat" style="color:<?= $kpi6_color ?>;font-size:.88rem;"></i>
-            </div>
-            <div style="font-size:1.5rem;font-weight:900;color:<?= $kpi6_color ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;"><?= $recurring_donor_rate ?>%</div>
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;">Recurring Donor Rate 🔄</div>
-            <div style="font-size:.68rem;color:#64748b;line-height:1.4;"><?= $recurring_donors ?> of <?= $total_donors_verified ?> donors on recurring plan</div>
-            <div style="font-size:.67rem;font-weight:700;color:<?= $kpi6_color ?>;margin-top:4px;"><?= number_format($recurring_revenue/1000000,1) ?>M VND recurring</div>
-        </div>
-
-    </div>
-</div>
-
-<!-- Recurring Donation Breakdown -->
-<?php if ($recurring_by_freq && $recurring_by_freq->num_rows > 0): ?>
-<div style="background:white;border:1.5px solid #bbf7d0;border-radius:16px;padding:20px 24px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.04);">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-        <span style="width:28px;height:28px;background:#dcfce7;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-            <i class="bi bi-arrow-repeat" style="color:#15803d;font-size:.78rem;"></i>
-        </span>
-        <span style="font-size:.9rem;font-weight:700;color:#0f172a;">Recurring Donations by Frequency</span>
-        <span style="background:#dcfce7;color:#15803d;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;">Donor retention metric</span>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-        <?php
-        $freq_detail_cfg = [
-            'monthly'   => ['Monthly',   '#dcfce7','#15803d','bi-calendar-month'],
-            'quarterly' => ['Quarterly', '#dbeafe','#1447c0','bi-calendar3'],
-            'yearly'    => ['Yearly',    '#ede9fe','#7c3aed','bi-calendar-check'],
-        ];
-        $recurring_by_freq->data_seek(0);
-        while ($rf = $recurring_by_freq->fetch_assoc()):
-            $rc = $freq_detail_cfg[$rf['frequency']] ?? ['Recurring','#f1f5f9','#475569','bi-calendar'];
-        ?>
-        <div style="background:<?= $rc[1] ?>;border:1.5px solid <?= $rc[1] ?>;border-radius:12px;padding:14px 16px;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <i class="bi <?= $rc[3] ?>" style="color:<?= $rc[2] ?>;font-size:1.1rem;"></i>
-                <span style="font-size:.8rem;font-weight:700;color:<?= $rc[2] ?>;"><?= $rc[0] ?></span>
-            </div>
-            <div style="font-size:1.4rem;font-weight:900;color:<?= $rc[2] ?>;letter-spacing:-.02em;"><?= $rf['cnt'] ?></div>
-            <div style="font-size:.7rem;color:<?= $rc[2] ?>;opacity:.8;">donations</div>
-            <div style="font-size:.78rem;font-weight:700;color:<?= $rc[2] ?>;margin-top:4px;"><?= number_format((float)$rf['total']/1000000,1) ?>M VND</div>
-        </div>
-        <?php endwhile; ?>
-    </div>
-</div>
-<?php endif; ?>
+</section>
 
 <div class="row g-4 mb-4">
     <!-- Monthly Chart -->
     <div class="col-lg-8">
-        <div class="card h-100">
-            <div class="card-header fw-bold"><i class="bi bi-bar-chart-line me-2"></i>Monthly Donation Trend (12 months)</div>
-            <div class="card-body"><canvas id="monthlyChart" height="160"></canvas></div>
-        </div>
-    </div>
-    <!-- Channel Pie -->
-    <div class="col-lg-4">
-        <div class="card h-100">
-            <div class="card-header fw-bold"><i class="bi bi-pie-chart me-2"></i>By Channel</div>
-            <div class="card-body d-flex align-items-center justify-content-center">
-                <?php if (!empty($ch_labels)): ?>
-                    <canvas id="channelChart" height="200"></canvas>
+        <section class="report-chart-card">
+            <div class="report-chart-heading">
+                <h2 class="report-section-title">Monthly donation trend</h2>
+                <p class="report-section-note">Verified donation amount and donation count, last 12 months</p>
+            </div>
+            <div class="report-chart-body">
+                <?php if (!empty($m_labels)): ?>
+                    <canvas id="monthlyChart" aria-label="Monthly donation trend chart"></canvas>
                 <?php else: ?>
-                    <div class="text-muted">No data</div>
+                    <div class="d-flex align-items-center justify-content-center h-100 text-muted" style="min-height:200px;">
+                        <div class="text-center">
+                            <p class="mb-0 small">No verified donation data available</p>
+                        </div>
+                    </div>
                 <?php endif; ?>
             </div>
-        </div>
+        </section>
+    </div>
+    <!-- Donation Channel -->
+    <div class="col-lg-4">
+        <section class="report-chart-card">
+            <div class="report-chart-heading">
+                <h2 class="report-section-title">Donations by channel</h2>
+                <p class="report-section-note">Share of all-time verified donation value</p>
+            </div>
+            <div class="report-chart-body d-flex align-items-center justify-content-center">
+                <?php if (!empty($ch_labels)): ?>
+                    <canvas id="channelChart" aria-label="Donations by channel chart"></canvas>
+                <?php else: ?>
+                    <p class="mb-0 small text-muted">No verified donation data available</p>
+                <?php endif; ?>
+            </div>
+        </section>
     </div>
 </div>
 
+<?php $ack_h = round((float)$ack_time, 1); ?>
+<section class="report-indicators" aria-label="Additional report indicators">
+    <div class="report-indicators-heading">
+        <h2 class="report-section-title">Performance and operations</h2>
+        <p class="report-section-note">Additional measures to put fundraising results in context</p>
+    </div>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Indicator</th>
+                    <th>Result</th>
+                    <th>Interpretation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Campaign target attainment</td>
+                    <td><?= (int)$reached_target ?> of <?= (int)$total_camps_eval ?> (<?= number_format((float)$target_attainment, 1) ?>%)</td>
+                    <td>Active or completed campaigns that have reached their recorded target</td>
+                </tr>
+                <tr>
+                    <td>Returning donors</td>
+                    <td><?= (int)$repeat_donors ?> of <?= (int)$total_donors ?> (<?= number_format((float)$retention_rate, 1) ?>%)</td>
+                    <td>Donors with more than one verified donation</td>
+                </tr>
+                <tr>
+                    <td>Average donation</td>
+                    <td><?= formatCurrency((float)$avg_donation_val) ?></td>
+                    <td>Average amount per verified donation</td>
+                </tr>
+                <tr>
+                    <td>Fund allocation</td>
+                    <td><?= formatCurrency($total_allocated) ?></td>
+                    <td><?= htmlspecialchars($allocation_status_summary, ENT_QUOTES, 'UTF-8') ?>. <?= htmlspecialchars($allocation_comparison, ENT_QUOTES, 'UTF-8') ?></td>
+                </tr>
+                <tr>
+                    <td>Verification turnaround</td>
+                    <td><?= number_format($ack_h, 1) ?> hours</td>
+                    <td>Average time from donation submission to transaction verification</td>
+                </tr>
+                <tr>
+                    <td>Transaction review</td>
+                    <td><?= number_format((int)$verified_txns) ?> verified; <?= number_format((int)$pending_txns) ?> pending; <?= number_format((int)$rejected_txns) ?> rejected</td>
+                    <td>Current transaction counts by finance review status</td>
+                </tr>
+                <tr>
+                    <td>Donations marked as recurring</td>
+                    <td><?= (int)$recurring_donors ?> of <?= (int)$total_donors_verified ?> donors (<?= number_format((float)$recurring_donor_rate, 1) ?>%); <?= formatCurrency((float)$recurring_revenue) ?></td>
+                    <td>Verified donation records with a recurring frequency selected; this does not represent an automatic payment schedule</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<p class="report-footnote">Figures are calculated from current database records. The monthly chart covers the last 12 months; the total and channel chart include all verified donations. Campaign raised amounts are recalculated from verified donation records, while allocations are summed from allocation records.</p>
+
 <!-- Campaign Performance Table -->
-<div class="table-card mb-4">
-    <div class="table-header">
-        <h6 class="fw-bold mb-0"><i class="bi bi-trophy me-2"></i>Campaign Performance</h6>
+<div class="table-card report-table mb-4">
+    <div class="report-table-heading">
+        <h2 class="report-section-title">Campaign performance</h2>
+        <p class="report-section-note">Progress and allocation by campaign</p>
     </div>
     <div class="table-responsive">
         <table class="table table-hover mb-0">
@@ -303,16 +311,16 @@ $recurring_by_freq     = $db->query("SELECT frequency, COUNT(*) as cnt, COALESCE
                 <tr>
                     <th>Campaign</th>
                     <th>Target</th>
-                    <th>Raised</th>
+                    <th>Verified raised</th>
                     <th>Progress</th>
-                    <th>Donations</th>
-                    <th>Allocated</th>
+                    <th>Verified donations</th>
+                    <th>Recorded allocations</th>
                     <th>Status</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ($camp_perf && $camp_perf->num_rows > 0): ?>
-                    <?php while($cp=$camp_perf->fetch_assoc()): ?>
+                    <?php while($cp=$camp_perf->fetch_assoc()): $campaign_status_style = $campaign_status_styles[$cp['status']] ?? $campaign_status_styles['draft']; ?>
                     <tr>
                         <td class="fw-semibold"><?= htmlspecialchars($cp['title']) ?></td>
                         <td class="small"><?= formatCurrency($cp['target_amount']) ?></td>
@@ -321,11 +329,11 @@ $recurring_by_freq     = $db->query("SELECT frequency, COUNT(*) as cnt, COALESCE
                             <div class="progress mb-1" style="height:6px;">
                                 <div class="progress-bar <?= $cp['pct']>=100?'bg-success':'' ?>" style="width:<?= min(100,$cp['pct']??0) ?>%"></div>
                             </div>
-                            <div class="small text-muted"><?= min(100,$cp['pct']??0) ?>%</div>
+                            <div class="small text-muted"><?= number_format((float)$cp['pct'], 1) ?>%</div>
                         </td>
                         <td class="text-center"><?= $cp['donations'] ?></td>
                         <td><?= $cp['allocated'] ? formatCurrency($cp['allocated']) : '—' ?></td>
-                        <td><span class="badge <?= getStatusBadgeClass($cp['status']) ?>"><?= ucfirst($cp['status']) ?></span></td>
+                        <td><span class="badge" style="<?= $campaign_status_style ?>"><?= htmlspecialchars(ucfirst($cp['status']), ENT_QUOTES, 'UTF-8') ?></span></td>
                     </tr>
                     <?php endwhile; ?>
                 <?php else: ?>
@@ -336,39 +344,86 @@ $recurring_by_freq     = $db->query("SELECT frequency, COUNT(*) as cnt, COALESCE
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="<?= SITE_URL ?>/assets/js/chart.umd.min.js"></script>
 <script>
 // Monthly bar chart
-new Chart(document.getElementById('monthlyChart'), {
-    type: 'bar',
-    data: {
-        labels: <?= json_encode($m_labels) ?>,
-        datasets: [
-            { label: 'Amount (VND)', data: <?= json_encode($m_amounts) ?>, backgroundColor: 'rgba(46,134,193,0.7)', borderColor:'#2e86c1', borderWidth:1, borderRadius:6, yAxisID:'y' },
-            { label: 'Count', data: <?= json_encode($m_counts) ?>, type:'line', borderColor:'#e74c3c', backgroundColor:'transparent', borderWidth:2, pointRadius:4, yAxisID:'y1' }
-        ]
-    },
-    options: {
-        responsive:true,
-        interaction:{mode:'index',intersect:false},
-        plugins:{legend:{position:'top'}},
-        scales:{
-            y:{beginAtZero:true,ticks:{callback:v=>new Intl.NumberFormat('vi-VN').format(v)}},
-            y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false}}
+<?php if (!empty($m_labels)): ?>
+try {
+(function () {
+    var ctx = document.getElementById('monthlyChart');
+    if (!ctx) { console.error('[Reports] monthlyChart canvas NOT FOUND'); return; }
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: <?= json_encode($m_labels) ?>,
+            datasets: [
+                {
+                    label: 'Amount (VND)',
+                    data: <?= json_encode($m_amounts) ?>,
+                    backgroundColor: 'rgba(20,71,192,.7)',
+                    borderColor: '#1447c0',
+                    borderWidth: 0,
+                    borderRadius: 6,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Verified donations',
+                    data: <?= json_encode($m_counts) ?>,
+                    type: 'line',
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239,68,68,.08)',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: function(v) { return new Intl.NumberFormat('vi-VN').format(v); } }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    grid: { drawOnChartArea: false }
+                }
+            }
         }
-    }
-});
+    });
+})();
+} catch(e) { console.error('[Reports] monthlyChart error:', e); }
+<?php endif; ?>
 
-// Channel doughnut
 <?php if (!empty($ch_labels)): ?>
-new Chart(document.getElementById('channelChart'), {
-    type: 'doughnut',
-    data: {
-        labels: <?= json_encode($ch_labels) ?>,
-        datasets: [{ data: <?= json_encode($ch_amounts) ?>, backgroundColor:['#2e86c1','#27ae60','#e74c3c','#f39c12','#8e44ad'], borderWidth:2 }]
-    },
-    options: { responsive:true, plugins:{legend:{position:'bottom'}} }
-});
+try {
+(function () {
+    var ctx = document.getElementById('channelChart');
+    if (!ctx) { console.error('[Reports] channelChart canvas NOT FOUND'); return; }
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: <?= json_encode($ch_labels) ?>,
+            datasets: [{
+                data: <?= json_encode($ch_amounts) ?>,
+                backgroundColor: ['#1447c0','#15803d','#d97706','#7c3aed','#0f766e'],
+                borderWidth: 2,
+                borderColor: '#fff',
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            cutout: '60%',
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 9, padding: 10 } } }
+        }
+    });
+})();
+} catch(e) { console.error('[Reports] channelChart error:', e); }
 <?php endif; ?>
 </script>
 

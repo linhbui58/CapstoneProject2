@@ -72,8 +72,51 @@ $role_styles = [
 ];
 ?>
 
+<style>
+.users-page-heading { align-items:center!important;margin-bottom:18px!important;padding:0 0 15px;border-bottom:1px solid #e8edf3; }
+.users-page-heading h1 { color:#172b45!important;font-size:1.3rem!important;letter-spacing:-.025em; }
+.users-page-heading p { color:#718096!important;font-size:.76rem!important; }
+.users-page-stats { grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:10px!important;margin-bottom:16px!important; }
+.users-page-stats > div { min-width:0;padding:12px 13px!important;border-color:#e5eaf1!important;border-radius:11px!important;box-shadow:0 2px 7px rgba(15,23,42,.035)!important;transition:transform .16s ease,box-shadow .16s ease; }
+.users-page-stats > div:hover { transform:translateY(-2px);box-shadow:0 5px 13px rgba(15,23,42,.07)!important; }
+.users-page-stats > div > div:last-child > div:first-child { color:#172b45!important;font-size:1.15rem!important; }
+.users-page-stats > div > div:last-child > div:last-child { color:#8190a1!important;font-size:.6rem!important; }
+.users-page-layout { grid-template-columns:minmax(0,1fr) 290px!important;gap:16px!important; }
+.users-table-card,.users-create-card { border-color:#e2e8f0!important;border-radius:12px!important;box-shadow:0 2px 9px rgba(15,23,42,.04)!important; }
+.users-card-heading { min-height:42px;background:linear-gradient(100deg,#fff,#fafbff); }
+.users-card-heading > span { color:#243b55!important;font-size:.84rem!important; }
+.users-table-scroll { scrollbar-color:#cbd5e1 #f8fafc;scrollbar-width:thin; }
+.users-table { min-width:760px; }
+.users-table thead th { position:sticky;top:0;z-index:1;background:#f8fafc!important;color:#7c8a9b!important;font-size:.61rem!important;letter-spacing:.065em!important; }
+.users-table tbody tr { transition:background-color .14s ease,opacity .14s ease!important; }
+.users-table tbody tr:hover { background:#f8faff!important; }
+.users-table tbody td { border-bottom:1px solid #edf1f5; }
+.users-create-card { top:78px!important; }
+.users-create-heading { min-height:42px;background:linear-gradient(100deg,#faf7ff,#f3edff)!important; }
+.users-create-heading > span { color:#243b55!important; }
+.users-create-form input,.users-create-form select { box-sizing:border-box; }
+.users-create-form input:focus,.users-create-form select:focus { border-color:#8b5cf6!important;box-shadow:0 0 0 3px rgba(139,92,246,.12); }
+.users-create-form button { background:linear-gradient(135deg,#7c3aed,#6d28d9)!important; }
+@media (max-width:1200px) {
+    .users-page-stats { grid-template-columns:repeat(3,minmax(0,1fr))!important; }
+}
+@media (max-width:900px) {
+    .users-page-layout { grid-template-columns:minmax(0,1fr)!important; }
+    .users-create-card { position:static!important; }
+}
+@media (max-width:575.98px) {
+    .users-page-heading { align-items:flex-start!important; }
+    .users-page-heading h1 { font-size:1.18rem!important; }
+    .users-page-stats { grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important; }
+    .users-page-stats > div { padding:10px!important; }
+    .users-page-layout { gap:12px!important; }
+    .users-table-scroll { border-radius:0 0 12px 12px; }
+    .users-create-form { padding:14px!important; }
+}
+</style>
+
 <!-- Header -->
-<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;gap:16px;">
+<div class="users-page-heading" style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;gap:16px;">
     <div>
         <h1 style="font-size:1.25rem;font-weight:700;color:#0f172a;margin:0 0 3px;display:flex;align-items:center;gap:9px;">
             <i class="bi bi-people-fill" style="color:#7c3aed;font-size:1rem;"></i>Manage Users
@@ -83,7 +126,7 @@ $role_styles = [
 </div>
 
 <!-- Mini stats -->
-<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;">
+<div class="users-page-stats" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;">
     <?php
     $mini_stats = [
         ['Total',          $total_users,             '#f1f5f9','#475569','bi-people'],
@@ -106,17 +149,17 @@ $role_styles = [
     <?php endforeach; ?>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start;">
+<div class="users-page-layout" style="display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start;">
 
     <!-- User table -->
-    <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);overflow:hidden;">
-        <div style="padding:13px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;">
+    <div class="users-table-card" style="background:white;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);overflow:hidden;">
+        <div class="users-card-heading" style="padding:13px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;">
             <i class="bi bi-list-ul" style="color:#7c3aed;font-size:.88rem;"></i>
             <span style="font-size:.86rem;font-weight:700;color:#0f172a;">System Users</span>
             <span style="background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:700;"><?= $total_users ?></span>
         </div>
-        <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;">
+        <div class="users-table-scroll" style="overflow-x:auto;">
+            <table class="users-table" style="width:100%;border-collapse:collapse;">
                 <thead>
                     <tr style="background:#f8fafc;">
                         <?php foreach(['User','Email','Role','Phone','Donations','Status','Action'] as $h): ?>
@@ -209,8 +252,8 @@ $role_styles = [
     </div>
 
     <!-- Create user form -->
-    <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);overflow:hidden;position:sticky;top:80px;">
-        <div style="padding:13px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#faf5ff,#ede9fe);">
+    <div class="users-create-card" style="background:white;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);overflow:hidden;position:sticky;top:80px;">
+        <div class="users-create-heading" style="padding:13px 18px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#faf5ff,#ede9fe);">
             <i class="bi bi-person-plus-fill" style="color:#7c3aed;font-size:.88rem;"></i>
             <span style="font-size:.86rem;font-weight:700;color:#0f172a;">Create New User</span>
         </div>
@@ -224,7 +267,7 @@ $role_styles = [
         </div>
         <?php endif; ?>
 
-        <form method="POST" style="padding:16px;">
+        <form class="users-create-form" method="POST" style="padding:16px;">
             <?php
             $form_fields = [
                 ['Full Name','name','text','Nguyen Van A', true],
