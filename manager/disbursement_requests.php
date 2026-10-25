@@ -1,6 +1,6 @@
 <?php
 $pageTitle  = 'Disbursement Requests';
-$activePage = 'campaigns';
+$activePage = 'disbursement';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
 
