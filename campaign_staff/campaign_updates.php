@@ -4,7 +4,7 @@ $activePage = 'campaigns';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('campaign_staff');
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 $errors = [];
 

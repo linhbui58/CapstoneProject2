@@ -11,7 +11,7 @@ if (!function_exists('sendDonationEmail')) {
     }
 }
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 $id  = (int)($_GET['id'] ?? 0);
 if (empty($_SESSION['csrf_token'])) {

@@ -64,7 +64,7 @@ $transactionStarted = false;
 $db = null;
 $failureStage = 'connecting to the database';
 try {
-    $db = getDB();
+    $db = getApplicationDB();
     if ($campaignId !== null) {
         $failureStage = 'checking the selected program';
         $campaignQuery = $db->prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active' LIMIT 1");

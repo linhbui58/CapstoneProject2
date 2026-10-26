@@ -4,7 +4,7 @@ $activePage = 'impact';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 
 // ── Overall donor stats ───────────────────────────

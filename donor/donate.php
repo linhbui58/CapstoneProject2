@@ -5,7 +5,7 @@ require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
 require_once dirname(__DIR__) . '/includes/vnpay.php';
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 $vnpayConfigError = '';
 try {

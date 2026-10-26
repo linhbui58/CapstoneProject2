@@ -3,7 +3,7 @@ $pageTitle  = 'Dashboard';
 $activePage = 'dashboard';
 require_once dirname(__DIR__) . '/includes/header.php';
 
-$db = getDB();
+$db = getApplicationDB();
 $uid = $user['id'];
 
 // Stats

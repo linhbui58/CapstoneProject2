@@ -4,7 +4,7 @@ $activePage = 'history';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('finance_staff');
 
-$db = getDB();
+$db = getApplicationDB();
 $filter_action = $_GET['action'] ?? '';
 $where = '1=1';
 if ($filter_action) { $fa=$db->real_escape_string($filter_action); $where.=" AND vh.action='$fa'"; }

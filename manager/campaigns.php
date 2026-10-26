@@ -3,7 +3,7 @@ $pageTitle  = 'All Campaigns';
 $activePage = 'campaigns';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
-$db = getDB();
+$db = getApplicationDB();
 
 $filter = $_GET['status'] ?? '';
 $where  = $filter ? "WHERE c.status='".$db->real_escape_string($filter)."'" : '';

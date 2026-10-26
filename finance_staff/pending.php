@@ -4,7 +4,7 @@ $activePage = 'verify';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('finance_staff');
 
-$db = getDB();
+$db = getApplicationDB();
 
 $pending = $db->query("
     SELECT t.*, d.amount, d.channel, d.message, d.is_anonymous,

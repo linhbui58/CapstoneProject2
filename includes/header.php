@@ -5,7 +5,7 @@ requireLogin();
 $user = getCurrentUser();
 $role = $user['role'];
 $initials = strtoupper(substr($user['name'], 0, 1));
-$db = getDB();
+$db = getApplicationDB();
 $notif_count = 0;
 $nr = $db->query("SELECT COUNT(*) as c FROM notifications WHERE user_id={$user['id']} AND is_read=0");
 if ($nr) $notif_count = (int)$nr->fetch_assoc()['c'];

@@ -3,7 +3,7 @@ $pageTitle  = 'Dashboard';
 $activePage = 'dashboard';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
-$db = getDB();
+$db = getApplicationDB();
 
 $total_raised   = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];
 $total_donors   = $db->query("SELECT COUNT(DISTINCT donor_id) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];

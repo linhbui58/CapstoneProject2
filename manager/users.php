@@ -4,7 +4,7 @@ $activePage = 'users';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 $errors = [];
 

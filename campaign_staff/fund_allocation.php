@@ -4,7 +4,7 @@ $activePage = 'fund_allocation';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('campaign_staff');
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 $filter_campaign = (int)($_GET['campaign_id'] ?? 0);
 $errors = [];

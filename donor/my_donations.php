@@ -4,7 +4,7 @@ $activePage = 'my_donations';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 
 // Auto-add frequency column if not yet present (safe migration)

@@ -4,7 +4,7 @@ $activePage = 'campaigns';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
 
-$db = getDB();
+$db = getApplicationDB();
 
 $campaigns = $db->query("
     SELECT c.*, u.name as created_by_name,

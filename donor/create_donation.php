@@ -98,7 +98,7 @@ if (!preg_match('/^[A-Z0-9]{2,20}$/', $bankId) || !preg_match('/^[0-9]{6,30}$/',
 
 try {
     $failureStage = 'connecting to the database';
-    $db = getDB();
+    $db = getApplicationDB();
     if ($campaignId !== null) {
         $failureStage = 'checking the selected campaign';
         $campaignQuery = $db->prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active' LIMIT 1");

@@ -2,7 +2,7 @@
 // Shared notifications page
 // Required vars from caller: $uid, $back_url, $color
 
-$db = getDB();
+$db = getApplicationDB();
 
 if (isset($_GET['mark_read'])) {
     $db->query("UPDATE notifications SET is_read=1 WHERE user_id=$uid");

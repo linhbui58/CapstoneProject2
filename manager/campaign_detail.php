@@ -4,7 +4,7 @@ $activePage = 'campaigns';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
 
-$db = getDB();
+$db = getApplicationDB();
 $id = (int)($_GET['id'] ?? 0);
 
 if (!$id) {

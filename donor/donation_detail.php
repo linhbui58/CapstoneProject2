@@ -4,7 +4,7 @@ $activePage = 'my_donations';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
 
-$db  = getDB();
+$db  = getApplicationDB();
 $uid = $user['id'];
 $id  = (int)($_GET['id'] ?? 0);
 

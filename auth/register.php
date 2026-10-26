@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif ($password !== $confirm)
         $error = 'Passwords do not match.';
     else {
-        $db = getDB();
+        $db = getApplicationDB();
         $ee = $db->real_escape_string($email);
         $chk = $db->query("SELECT id FROM users WHERE email='$ee' LIMIT 1");
         if ($chk && $chk->num_rows > 0) {

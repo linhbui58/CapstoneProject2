@@ -3,7 +3,7 @@ $pageTitle  = 'All Donations';
 $activePage = 'donations';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
-$db = getDB();
+$db = getApplicationDB();
 
 // Auto-add frequency column if not yet present (safe migration)
 $db->query("ALTER TABLE donations ADD COLUMN IF NOT EXISTS frequency ENUM('one_time','monthly','quarterly','yearly') NOT NULL DEFAULT 'one_time' AFTER channel");

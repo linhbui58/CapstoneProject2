@@ -3,7 +3,7 @@ $pageTitle  = 'Dashboard';
 $activePage = 'dashboard';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('campaign_staff');
-$db = getDB();
+$db = getApplicationDB();
 
 $active_camps   = (int)$db->query("SELECT COUNT(*) as t FROM campaigns WHERE status='active'")->fetch_assoc()['t'];
 $total_camps    = (int)$db->query("SELECT COUNT(*) as t FROM campaigns")->fetch_assoc()['t'];

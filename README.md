@@ -82,6 +82,8 @@ C:\xampp\htdocs\CapstoneProject2
 
 Donation creation, status checks, and finance verification use the application's existing database connection from `config/db.php`. On InfinityFree, create `config/vietqr.php` on the server (next to `db.php`) with the following contents, replacing the example values with the fund account details. This file is excluded from Git and deployment uploads so it remains private and is not overwritten:
 
+The application sets PHP and every database connection to Vietnam time (`Asia/Ho_Chi_Minh`, UTC+07:00), so database timestamps and displayed dates use Hanoi local time.
+
 ```php
 <?php
 return [

@@ -4,7 +4,7 @@ $activePage = 'segmentation';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
 
-$db = getDB();
+$db = getApplicationDB();
 
 // ── Ensure advanced columns exist (auto-migrate) ──
 $db->query("ALTER TABLE donor_profiles

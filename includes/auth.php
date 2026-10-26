@@ -7,7 +7,19 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+date_default_timezone_set('Asia/Ho_Chi_Minh');
+
 require_once dirname(__DIR__) . '/config/db.php';
+
+function getApplicationDB(): mysqli
+{
+    $db = getDB();
+    if (!$db->query("SET time_zone = '+07:00'")) {
+        throw new RuntimeException('Unable to set the database timezone to Vietnam time: ' . $db->error);
+    }
+
+    return $db;
+}
 
 // ----------------------
 // Redirect helper
@@ -97,7 +109,7 @@ function logoutUser() {
 // ----------------------
 if (!function_exists('loginUser')) {
     function loginUser($email, $password) {
-        $db = getDB();
+        $db = getApplicationDB();
         $stmt = $db->prepare(
             'SELECT id, name, email, password, role, is_active FROM users WHERE email = ? LIMIT 1'
         );

@@ -4,7 +4,7 @@ $activePage = 'link_donations';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('campaign_staff');
 
-$db = getDB();
+$db = getApplicationDB();
 
 // Handle link action
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -4,7 +4,7 @@ $activePage = 'reports';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('manager');
 
-$db = getDB();
+$db = getApplicationDB();
 
 // Use verified donation records as the source of truth for fundraising totals.
 $total_raised = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];

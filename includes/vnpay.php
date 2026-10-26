@@ -103,7 +103,7 @@ function processVnPayCallback(array $parameters, array $config): array
         return ['response_code' => '99', 'message' => 'Invalid payment data.'];
     }
 
-    $db = getDB();
+    $db = getApplicationDB();
     $transactionStarted = false;
     try {
         if (!$db->begin_transaction()) {

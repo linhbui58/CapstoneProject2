@@ -3,7 +3,7 @@ $pageTitle  = 'Dashboard';
 $activePage = 'dashboard';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('finance_staff');
-$db = getDB();
+$db = getApplicationDB();
 
 $pending  = (int)$db->query("SELECT COUNT(*) as t FROM transactions WHERE verification_status='pending_verification'")->fetch_assoc()['t'];
 $verified = (int)$db->query("SELECT COUNT(*) as t FROM transactions WHERE verification_status='verified'")->fetch_assoc()['t'];

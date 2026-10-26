@@ -4,7 +4,7 @@ $activePage = 'transactions';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('finance_staff');
 
-$db = getDB();
+$db = getApplicationDB();
 $filter_status = $_GET['status'] ?? '';
 $search        = $_GET['search'] ?? '';
 

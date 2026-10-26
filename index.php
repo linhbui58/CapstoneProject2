@@ -3,13 +3,12 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/auth.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (isset($_SESSION['user_id'])) {
-    require_once __DIR__ . '/includes/auth.php';
     redirectToDashboard();
 }
-$db = getDB();
+$db = getApplicationDB();
 $campaigns  = $db->query("SELECT c.*, DATEDIFF(c.end_date,CURDATE()) as days_left, COUNT(d.id) as donor_count FROM campaigns c LEFT JOIN donations d ON d.campaign_id=c.id AND d.status='verified' WHERE c.status='active' GROUP BY c.id ORDER BY c.raised_amount DESC LIMIT 3");
 $t_raised   = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];
 $t_donors   = $db->query("SELECT COUNT(DISTINCT donor_id) as t FROM donations WHERE status='verified'")->fetch_assoc()['t'];

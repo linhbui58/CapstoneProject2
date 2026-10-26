@@ -24,7 +24,7 @@ if (!$donationId || $donationId < 1) {
 }
 
 try {
-    $db = getDB();
+    $db = getApplicationDB();
     $query = $db->prepare(
         'SELECT d.status, t.verification_status, t.rejection_reason
          FROM donations d
