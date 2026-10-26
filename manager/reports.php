@@ -178,6 +178,9 @@ $campaign_status_styles = [
     </div>
     <div class="d-flex align-items-end gap-3">
         <div class="report-meta">Generated <?= date('d M Y') ?><br>Figures include verified donations</div>
+        <a href="<?= SITE_URL ?>/includes/export_excel.php?type=manager_report" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+        </a>
         <button onclick="window.print()" class="btn btn-outline-secondary btn-sm report-print-button">
             <i class="bi bi-printer me-1"></i>Print
         </button>

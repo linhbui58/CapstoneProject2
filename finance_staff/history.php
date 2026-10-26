@@ -52,11 +52,18 @@ $action_styles = [
         </div>
         <p style="color:#64748b;font-size:.79rem;margin:0 0 0 44px;">Complete audit trail of all verification actions</p>
     </div>
-    <a href="<?= SITE_URL ?>/finance_staff/transactions.php"
-       style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:9px;color:#64748b;font-size:.8rem;font-weight:600;background:white;text-decoration:none;white-space:nowrap;transition:all .15s;"
-       onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
-        <i class="bi bi-list-check"></i>All Transactions
-    </a>
+    <div style="display:flex;align-items:center;gap:8px;">
+        <a href="<?= SITE_URL ?>/includes/export_excel.php?type=finance_history<?= $filter_action ? '&amp;action=' . urlencode($filter_action) : '' ?>"
+           style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1.5px solid #15803d;border-radius:9px;color:#15803d;font-size:.8rem;font-weight:600;background:white;text-decoration:none;white-space:nowrap;transition:all .15s;"
+           onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
+            <i class="bi bi-file-earmark-excel"></i>Export Excel
+        </a>
+        <a href="<?= SITE_URL ?>/finance_staff/transactions.php"
+           style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:9px;color:#64748b;font-size:.8rem;font-weight:600;background:white;text-decoration:none;white-space:nowrap;transition:all .15s;"
+           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+            <i class="bi bi-list-check"></i>All Transactions
+        </a>
+    </div>
 </div>
 
 <!-- Summary stats -->

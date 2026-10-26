@@ -46,6 +46,11 @@ $ch_colors = ['bank_transfer'=>['#dbeafe','#1447c0'],'e_wallet'=>['#dcfce7','#15
         <p style="color:#64748b;font-size:.79rem;margin:0;">View, filter and manage all donation transactions</p>
     </div>
     <div style="display:flex;gap:9px;flex-shrink:0;">
+        <a href="<?= SITE_URL ?>/includes/export_excel.php?type=finance_transactions<?= $filter_status ? '&amp;status=' . urlencode($filter_status) : '' ?><?= $search ? '&amp;search=' . urlencode($search) : '' ?>"
+           style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid #15803d;color:#15803d;border-radius:9px;font-weight:700;font-size:.8rem;background:white;text-decoration:none;transition:all .18s;white-space:nowrap;"
+           onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">
+            <i class="bi bi-file-earmark-excel"></i>Export Excel
+        </a>
         <a href="<?= SITE_URL ?>/finance_staff/create_transaction.php"
            style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:linear-gradient(135deg,#1447c0,#0d2157);color:white;border-radius:9px;font-weight:700;font-size:.8rem;box-shadow:0 3px 10px rgba(20,71,192,.25);text-decoration:none;transition:all .18s;white-space:nowrap;"
            onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">

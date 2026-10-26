@@ -131,6 +131,8 @@ http://localhost/CapstoneProject2/
 
 The available functions depend on the current implementation.
 
+Managers can export campaign performance, and finance staff can export transactions and verification history as UTF-8 CSV files that open in Excel. Finance exports retain the selected page filters.
+
 ## 8. Git Workflow
 
 To keep the `main` branch stable, team members should work on separate feature branches.
