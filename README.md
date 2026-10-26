@@ -111,6 +111,8 @@ Use the sandbox credentials and test gateway first. Before going live, replace t
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
+For an existing installation, import `database/migrations/20261026_disbursement_requests.sql` into the application's selected database using phpMyAdmin. This adds the missing disbursement request table and the evidence columns required by completed disbursements. New installations get this schema from `database/full_setup.sql`.
+
 ### Step 5: Run the Application
 
 Open the following URL in your browser:

@@ -11,6 +11,13 @@ date_default_timezone_set('Asia/Ho_Chi_Minh');
 
 require_once dirname(__DIR__) . '/config/db.php';
 
+if (!function_exists('sanitize')) {
+    function sanitize($value)
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+}
+
 function getApplicationDB(): mysqli
 {
     $db = getDB();

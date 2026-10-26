@@ -123,9 +123,39 @@ CREATE TABLE IF NOT EXISTS fund_allocations (
     allocated_by INT NOT NULL,
     allocation_date DATE NOT NULL,
     status ENUM('planned', 'disbursed', 'completed') DEFAULT 'planned',
+    evidence_url VARCHAR(255),
+    evidence_note TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (campaign_id) REFERENCES campaigns(id),
     FOREIGN KEY (allocated_by) REFERENCES users(id)
+);
+
+-- =====================================================
+-- DISBURSEMENT REQUESTS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS disbursement_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    campaign_id INT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    beneficiary VARCHAR(200) NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    purpose TEXT NOT NULL,
+    justification TEXT,
+    requested_by INT NOT NULL,
+    status ENUM('pending', 'approved', 'rejected', 'disbursed') DEFAULT 'pending',
+    reviewed_by INT NULL,
+    reviewed_at DATETIME NULL,
+    review_note TEXT,
+    evidence_url VARCHAR(255),
+    evidence_note TEXT,
+    disbursed_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_disbursement_status (status),
+    INDEX idx_disbursement_campaign (campaign_id),
+    INDEX idx_disbursement_requester (requested_by),
+    FOREIGN KEY (campaign_id) REFERENCES campaigns(id),
+    FOREIGN KEY (requested_by) REFERENCES users(id),
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- =====================================================
