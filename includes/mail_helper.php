@@ -1,30 +1,36 @@
 <?php
-require_once __DIR__ . '/../vendor/autoload.php';
-
 use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transactionCode) {
-    // Cập nhật đường dẫn trỏ vào thư mục config/mailer.php
-    $config = require __DIR__ . '/../config/mailer.php';
-    
-    $mail = new PHPMailer(true);
-    
+    $mail = null;
+
     try {
+        require_once __DIR__ . '/../vendor/autoload.php';
+        $mail = new PHPMailer(true);
+
+        $config = require __DIR__ . '/../config/mailer.php';
+        if (!is_array($config)
+            || !isset($config['SMTP_USER'], $config['SMTP_PASS'])
+            || !is_string($config['SMTP_USER'])
+            || !is_string($config['SMTP_PASS'])
+            || trim($config['SMTP_USER']) === ''
+            || trim($config['SMTP_PASS']) === '') {
+            throw new RuntimeException('SMTP_USER or SMTP_PASS is missing or invalid in config/mailer.php.');
+        }
+
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com'; 
         $mail->SMTPAuth   = true;
         
-        // Sử dụng biến từ file mailer.php
-        $mail->Username   = $config['SMTP_USER']; 
-        $mail->Password   = $config['SMTP_PASS']; 
+        $mail->Username   = trim($config['SMTP_USER']);
+        $mail->Password   = preg_replace('/\s+/', '', $config['SMTP_PASS']);
         
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
         $mail->CharSet    = 'UTF-8';
 
         // Tự động lấy email gửi đi từ file config
-        $mail->setFrom($config['SMTP_USER'], 'VinaCapital Foundation');
+        $mail->setFrom($mail->Username, 'VinaCapital Foundation');
         $mail->addAddress($toEmail, $toName);
 
         // Nội dung Email
@@ -56,8 +62,11 @@ function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transact
 
         $mail->send();
         return true;
-    } catch (Exception $e) {
-        error_log("Lỗi gửi email tri ân tới {$toEmail}: {$mail->ErrorInfo}");
+    } catch (Throwable $e) {
+        error_log("Lỗi gửi email tri ân tới {$toEmail}: {$e->getMessage()}");
+        if ($mail instanceof PHPMailer && $mail->ErrorInfo !== '') {
+            error_log('PHPMailer: ' . $mail->ErrorInfo);
+        }
         return false;
     }
 }

@@ -27,5 +27,6 @@ jobs:
           **/config/vietqr.php
           **/config/vnpay.php
           **/config/paypal.php
+          **/config/mailer.php
           **/database/*.sql
           README.md
