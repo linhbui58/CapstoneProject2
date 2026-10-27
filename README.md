@@ -50,6 +50,7 @@ Before running the application, install:
 * XAMPP with Apache, PHP, and MySQL.
 * A web browser.
 * Git (if cloning the repository).
+* Composer (to install the PHP mail dependency locally).
 
 ## 6. Installation and Setup
 
@@ -108,6 +109,18 @@ return [
 ```
 
 Use the sandbox credentials and test gateway first. Before going live, replace them with the live merchant credentials and set `mode` to `live`. Register `https://vcf-transaction-system.wuaze.com/donor/vnpay_ipn.php` as the IPN URL in the VNPay merchant portal. The return URL is generated from the application's `SITE_URL`; use the site's public HTTPS address. The private config file is excluded from Git and deployment uploads. Card entry and processing take place on VNPay; this application never collects or stores card numbers. The card option requests VNPay's domestic bank-card method (`VNBANK`); payment methods depend on the merchant account. VNPay card donations must be at least 5,000 VND.
+
+Finance verification sends a thank-you email to the donor after a donation is verified. Install PHP dependencies locally with `composer install`; the deployment workflow installs them before uploading the application. On the hosting server, create `config/mailer.php` (or `config.php` at the site root) with the SMTP credentials below. The root `config.php` location is supported for existing hosting setups; `config/mailer.php` is preferred.
+
+```php
+<?php
+return [
+    'SMTP_USER' => 'your-sender@gmail.com',
+    'SMTP_PASS' => 'your-Google-app-password',
+];
+```
+
+For Gmail, use a Google App Password with 2-Step Verification enabled, not the account password. Do not commit the SMTP config. If verification succeeds but mail delivery fails, the finance staff page shows a warning; check the server's PHP error log for the SMTP failure. Gmail SMTP uses STARTTLS on port 587.
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 

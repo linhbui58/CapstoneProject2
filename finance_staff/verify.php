@@ -201,18 +201,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $transactionStarted = false;
 
+        $flashType = $action === 'verified' ? 'success' : 'warning';
         if ($action === 'verified') {
             if (!empty($txn['donor_email'])) {
-                sendThankYouEmail(
+                $emailSent = sendThankYouEmail(
                     $txn['donor_email'],
                     $txn['donor_name'],
                     $txn['amount'],
                     $txn['campaign_title'],
                     $txn['reference_code'] ?? (string) $id
                 );
+                if (!$emailSent) {
+                    $flashType = 'warning';
+                    $flashMessage .= ' The donation was recorded, but the confirmation email could not be sent. Check the server error log and SMTP configuration.';
+                }
+            } else {
+                $flashType = 'warning';
+                $flashMessage .= ' The donation was recorded, but the donor has no email address on file.';
             }
         }
-        setFlash($action === 'verified' ? 'success' : 'warning', $flashMessage);
+        setFlash($flashType, $flashMessage);
         redirect(SITE_URL . '/finance_staff/pending.php');
     } catch (Throwable $exception) {
         if ($transactionStarted) {

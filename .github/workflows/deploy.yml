@@ -12,6 +12,15 @@ jobs:
     - name: Get latest code
       uses: actions/checkout@v3
 
+    - name: Set up PHP and Composer
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        tools: composer
+
+    - name: Install PHP dependencies
+      run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
     - name: Sync files via FTP
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
@@ -28,5 +37,9 @@ jobs:
           **/config/vnpay.php
           **/config/paypal.php
           **/config/mailer.php
+          **/config/config.php
+          **/config.php
+          config/config.php
+          config.php
           **/database/*.sql
           README.md

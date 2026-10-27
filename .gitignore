@@ -4,6 +4,8 @@ config/vietqr.php
 config/vnpay.php
 config/paypal.php
 config/mailer.php
+config/config.php
+config.php
 
 # Upload folder
 assets/images/campaigns/*.jpg
