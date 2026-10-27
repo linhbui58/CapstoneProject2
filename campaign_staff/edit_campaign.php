@@ -26,21 +26,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($image_type === 'url') {
         $image_url = sanitize($_POST['image_url'] ?? '');
-    } elseif ($image_type === 'upload' && isset($_FILES['image_file']) && $_FILES['image_file']['error'] === 0) {
-        $file    = $_FILES['image_file'];
-        $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg','jpeg','png','webp','gif'];
-        if (!in_array($ext, $allowed)) {
-            $errors[] = 'Image must be JPG, PNG, WEBP or GIF.';
-        } elseif ($file['size'] > 5 * 1024 * 1024) {
+    } elseif ($image_type === 'upload') {
+        $file = $_FILES['image_file'] ?? null;
+        if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) {
+            $errors[] = 'Select an image to upload.';
+        } elseif ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE || $file['size'] > 5 * 1024 * 1024) {
             $errors[] = 'Image size must be under 5MB.';
+        } elseif ($file['error'] !== UPLOAD_ERR_OK) {
+            $errors[] = 'Image upload failed. Please try again.';
         } else {
-            $filename = 'camp_' . time() . '_' . uniqid() . '.' . $ext;
-            $dest     = dirname(__DIR__) . '/assets/images/campaigns/' . $filename;
-            if (move_uploaded_file($file['tmp_name'], $dest)) {
-                $image_url = SITE_URL . '/assets/images/campaigns/' . $filename;
+            $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg','jpeg','png','webp','gif'];
+            if (!in_array($ext, $allowed, true)) {
+                $errors[] = 'Image must be JPG, PNG, WEBP or GIF.';
+            } elseif (getimagesize($file['tmp_name']) === false) {
+                $errors[] = 'The selected file is not a valid image.';
             } else {
-                $errors[] = 'Failed to upload image.';
+                $filename = 'camp_' . time() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+                $upload_dir = dirname(__DIR__) . '/assets/images/campaigns/';
+                if (!is_dir($upload_dir) && !mkdir($upload_dir, 0755, true) && !is_dir($upload_dir)) {
+                    $errors[] = 'Failed to prepare the image upload directory.';
+                } elseif (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
+                    $image_url = SITE_URL . '/assets/images/campaigns/' . $filename;
+                } else {
+                    $errors[] = 'Failed to upload image.';
+                }
             }
         }
     } elseif ($image_type === 'remove') {
@@ -195,6 +205,7 @@ $current_img = $campaign['image_url'] ?? '';
                         <i class="bi bi-cloud-upload" style="font-size:1.6rem;color:#94a3b8;display:block;margin-bottom:7px;"></i>
                         <div style="font-size:.82rem;font-weight:600;color:#475569;margin-bottom:3px;">Click to upload or drag & drop</div>
                         <div style="font-size:.71rem;color:#94a3b8;">JPG, PNG, WEBP — max 5MB</div>
+                        <div id="selectedFileName" style="display:none;font-size:.74rem;color:#15803d;font-weight:600;margin-top:6px;"></div>
                         <input type="file" name="image_file" id="imageFile" accept="image/*"
                                style="display:none;" onchange="previewFile(this)">
                     </div>
@@ -345,10 +356,9 @@ function previewFile(input) {
         document.getElementById('newPreview').style.display = 'block';
         document.getElementById('dropZone').style.borderColor = '#16a34a';
         document.getElementById('dropZone').style.background  = '#f0fdf4';
-        document.getElementById('dropZone').innerHTML =
-            '<i class="bi bi-check-circle-fill" style="font-size:1.4rem;color:#16a34a;display:block;margin-bottom:5px;"></i>' +
-            '<div style="font-size:.82rem;font-weight:600;color:#15803d;">' + input.files[0].name + '</div>' +
-            '<input type="file" name="image_file" id="imageFile" accept="image/*" style="display:none;" onchange="previewFile(this)">';
+        const fileName = document.getElementById('selectedFileName');
+        fileName.textContent = input.files[0].name;
+        fileName.style.display = 'block';
     };
     reader.readAsDataURL(input.files[0]);
 }
