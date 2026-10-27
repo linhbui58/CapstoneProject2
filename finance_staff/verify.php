@@ -65,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('danger', 'Gateway-processed donations can only be verified after their payment provider confirms payment.');
         redirect(SITE_URL . '/finance_staff/verify.php?id=' . $id);
     }
+    
     $transactionStarted = false;
     try {
         if (!$db->begin_transaction()) {
@@ -136,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $campaignUpdate->close();
             }
+            
             $profileUpdate = $db->prepare('UPDATE donor_profiles SET total_donated = total_donated + ? WHERE user_id = ?');
             if (!$profileUpdate) {
                 throw new RuntimeException('Unable to prepare donor profile update: ' . $db->error);
@@ -149,10 +151,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $profileUpdate->close();
 
             $donorFirst = explode(' ', $txn['donor_name'])[0];
-            $campaignName = $txn['campaign_title'] ?? 'our fundraising campaign';
+            $campaignName = !empty($txn['campaign_title']) ? $txn['campaign_title'] : 'our fundraising campaign';
             $newRaised = (float) $txn['raised_amount'] + (float) $txn['amount'];
             $newPercent = $txn['target_amount'] > 0 ? round(($newRaised / $txn['target_amount']) * 100, 1) : 0;
-            if ($txn['campaign_id'] && $txn['campaign_title']) {
+            
+            if ($txn['campaign_id'] && !empty($txn['campaign_title'])) {
                 $notificationMessage = "Dear {$donorFirst}, your donation of " . formatCurrency($txn['amount'])
                     . " to \"{$campaignName}\" has been verified and recorded. "
                     . "Thanks to supporters like you, this campaign has now reached {$newPercent}% of its fundraising goal. "
@@ -196,32 +199,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new RuntimeException('Unable to notify donor: ' . $notificationInsert->error);
         }
         $notificationInsert->close();
+        
         if (!$db->commit()) {
             throw new RuntimeException('Unable to commit verification transaction: ' . $db->error);
         }
         $transactionStarted = false;
 
+        // SEND EMAIL LOGIC
         $flashType = $action === 'verified' ? 'success' : 'warning';
         if ($action === 'verified') {
             if (!empty($txn['donor_email'])) {
+                // Đảm bảo không bị truyền tham số null vào hàm gửi mail
+                $safeCampaignTitle = !empty($txn['campaign_title']) ? (string)$txn['campaign_title'] : 'General Donation';
+                $safeRefCode = !empty($txn['reference_code']) ? (string)$txn['reference_code'] : (string)$id;
+                
                 $emailSent = sendThankYouEmail(
-                    $txn['donor_email'],
-                    $txn['donor_name'],
-                    $txn['amount'],
-                    $txn['campaign_title'],
-                    $txn['reference_code'] ?? (string) $id
+                    (string)$txn['donor_email'],
+                    (string)$txn['donor_name'],
+                    (float)$txn['amount'],
+                    $safeCampaignTitle,
+                    $safeRefCode
                 );
+                
                 if (!$emailSent) {
                     $flashType = 'warning';
-                    $flashMessage .= ' The donation was recorded, but the confirmation email could not be sent. Check the server error log and SMTP configuration.';
+                    $flashMessage .= ' The donation was verified, but the email could not be sent (SMTP blocked or failed).';
                 }
             } else {
                 $flashType = 'warning';
                 $flashMessage .= ' The donation was recorded, but the donor has no email address on file.';
             }
         }
+        
         setFlash($flashType, $flashMessage);
         redirect(SITE_URL . '/finance_staff/pending.php');
+        
     } catch (Throwable $exception) {
         if ($transactionStarted) {
             $db->rollback();
