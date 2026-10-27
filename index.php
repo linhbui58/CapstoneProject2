@@ -912,12 +912,36 @@ a { text-decoration: none; color: inherit; }
     .stats-bar-grid { grid-template-columns: 1fr 1fr; }
     .how-grid::before { display: none; }
 }
+@media (max-width: 900px) {
+    .pub-nav-in {
+        grid-template-columns: minmax(0, 1fr) auto;
+        height: auto;
+        min-height: 66px;
+        padding: 10px 24px;
+        gap: 12px;
+    }
+    .nav-links-center { display: none; }
+    .nav-logo-ico { width: clamp(150px, 25vw, 205px); }
+}
 @media (max-width: 640px) {
     .camps-grid, .feat-grid, .how-grid { grid-template-columns: 1fr; }
     .hero-title { font-size: 2.1rem; }
     .w { padding: 0 18px; }
-    .nav-links-center { display: none; }
-    .pub-nav-in { grid-template-columns: 1fr auto; padding: 0 18px; }
+    .pub-nav-in { padding: 9px 18px; gap: 8px; }
+    .nav-logo-ico { width: clamp(118px, 38vw, 165px); }
+    .nav-actions { gap: 5px; }
+    .btn-signin { padding: 7px 9px; font-size: .74rem; }
+    .btn-donate-nav { padding: 8px 10px; font-size: .72rem; gap: 4px; }
+    .pub-footer { padding-top: 40px; }
+    .foot-top-grid { grid-template-columns: minmax(0, 1fr); gap: 26px; padding-bottom: 30px; }
+    .foot-logo-ico { width: min(205px, 70vw); }
+    .foot-about { max-width: 100%; }
+    .foot-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
+    .fstat-item:nth-child(2) { border-right: none; }
+    .fstat-val { font-size: 1.1rem; }
+    .foot-bottom-row { align-items: flex-start; flex-direction: column; }
+    .foot-copy { line-height: 1.6; }
+    .foot-legal-links { flex-wrap: wrap; gap: 8px 14px; }
     .stats-bar-grid { grid-template-columns: 1fr 1fr; }
     .how-grid::before { display: none; }
 }
