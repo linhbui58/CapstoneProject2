@@ -88,11 +88,7 @@ $rc = $roleColors[$role] ?? ['bg'=>'#f1f5f9','text'=>'#475569'];
 <nav class="sidebar" id="sidebar">
     <!-- Brand -->
     <div class="sidebar-brand">
-        <div class="brand-icon"><i class="bi bi-heart-fill"></i></div>
-        <div class="brand-text">
-            <strong>VCF System</strong>
-            <span>Donation & Fundraising</span>
-        </div>
+        <img src="<?= SITE_URL ?>/assets/images/vcf-logo.png" alt="VinaCapital Foundation" style="display:block;width:205px;max-width:100%;height:auto;">
     </div>
 
     <!-- Nav -->

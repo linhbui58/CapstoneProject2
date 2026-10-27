@@ -64,30 +64,14 @@ a { text-decoration: none; color: inherit; }
     flex-shrink: 0;
 }
 .nav-logo-ico {
-    width: 38px; height: 38px;
-    background: linear-gradient(135deg, #ef4444, #f97316);
-    border-radius: 11px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: .9rem; color: #fff;
-    box-shadow: 0 4px 14px rgba(239,68,68,.38);
+    display: block;
+    width: 205px;
+    max-width: 100%;
+    height: auto;
     flex-shrink: 0;
     transition: transform .2s;
 }
 .nav-logo:hover .nav-logo-ico { transform: scale(1.07); }
-.nav-logo-text {
-    font-weight: 800;
-    font-size: .95rem;
-    color: #0f172a;
-    letter-spacing: -.025em;
-    line-height: 1.1;
-}
-.nav-logo-sub {
-    display: block;
-    font-size: .62rem;
-    font-weight: 500;
-    color: #94a3b8;
-    letter-spacing: .01em;
-}
 .nav-links-center {
     display: flex;
     align-items: center;
@@ -816,17 +800,11 @@ a { text-decoration: none; color: inherit; }
     margin-bottom: 14px;
 }
 .foot-logo-ico {
-    width: 36px; height: 36px;
-    background: linear-gradient(135deg, #ef4444, #f97316);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 3px 10px rgba(239,68,68,.35);
+    display: block;
+    width: 205px;
+    max-width: 100%;
+    height: auto;
     flex-shrink: 0;
-}
-.foot-brand-name {
-    font-weight: 700;
-    font-size: .9rem;
-    color: #fff;
 }
 .foot-about {
     font-size: .78rem;
@@ -955,13 +933,7 @@ a { text-decoration: none; color: inherit; }
 
         <!-- Logo -->
         <a href="<?= SITE_URL ?>" class="nav-logo">
-            <div class="nav-logo-ico">
-                <i class="bi bi-heart-fill"></i>
-            </div>
-            <div>
-                <span class="nav-logo-text">VCF Donation System</span>
-                <span class="nav-logo-sub">VinaCapital Foundation</span>
-            </div>
+            <img class="nav-logo-ico" src="<?= SITE_URL ?>/assets/images/vcf-logo.png" alt="VinaCapital Foundation">
         </a>
 
         <!-- Center links -->
@@ -1308,10 +1280,7 @@ a { text-decoration: none; color: inherit; }
             <!-- Brand column -->
             <div>
                 <div class="foot-brand-row">
-                    <div class="foot-logo-ico">
-                        <i class="bi bi-heart-fill" style="color:white;font-size:.8rem;"></i>
-                    </div>
-                    <span class="foot-brand-name">VCF Donation System</span>
+                    <img class="foot-logo-ico" src="<?= SITE_URL ?>/assets/images/vcf-logo.png" alt="VinaCapital Foundation">
                 </div>
                 <p class="foot-about">Supporting education, healthcare, and community development programs across Vietnam through transparent, verified fundraising campaigns.</p>
                 <div class="foot-socials">

@@ -89,16 +89,12 @@ body {
     display: flex; align-items: center; gap: 12px;
     margin-bottom: 52px; position: relative; z-index: 1;
 }
-.logo-icon {
-    width: 36px; height: 36px;
-    background: linear-gradient(135deg, #ef4444, #f97316);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: .9rem; color: white;
-    box-shadow: 0 4px 12px rgba(239,68,68,.4);
-    flex-shrink: 0;
+.logo-image {
+    display: block;
+    width: 230px;
+    max-width: 100%;
+    height: auto;
 }
-.logo-name { font-size: .92rem; font-weight: 700; color: white; }
 
 .headline { position: relative; z-index: 1; margin-bottom: 30px; }
 .headline h2 {
@@ -285,8 +281,7 @@ body {
 <div class="left">
 
     <div class="logo">
-        <div class="logo-icon"><i class="bi bi-heart-fill"></i></div>
-        <span class="logo-name">VCF Donation System</span>
+        <img class="logo-image" src="../assets/images/vcf-logo.png" alt="VinaCapital Foundation">
     </div>
 
     <div class="headline">

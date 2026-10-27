@@ -14,13 +14,7 @@
     ">
         <!-- Left: brand -->
         <div style="display:flex;align-items:center;gap:9px;">
-            <div style="width:26px;height:26px;background:linear-gradient(135deg,#ef4444,#f97316);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="bi bi-heart-fill" style="color:white;font-size:.62rem;"></i>
-            </div>
-            <div>
-                <span style="font-size:.76rem;font-weight:700;color:#0f172a;">VCF Donation &amp; Fundraising</span>
-                <span style="font-size:.72rem;color:#94a3b8;margin-left:6px;">Management System</span>
-            </div>
+            <img src="<?= SITE_URL ?>/assets/images/vcf-logo.png" alt="VinaCapital Foundation" style="display:block;width:190px;max-width:100%;height:auto;">
         </div>
 
         <!-- Center: links -->
