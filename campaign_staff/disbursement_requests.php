@@ -11,13 +11,15 @@ $errors = [];
 function uploadDisbursEvidence(array $file): ?string {
     if ($file['error'] === UPLOAD_ERR_NO_FILE) return null;
     if ($file['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Upload error.');
-    $allowed = ['image/jpeg','image/png','image/webp','application/pdf'];
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime  = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    if (!in_array($mime, $allowed)) throw new RuntimeException('Only JPG, PNG, WebP or PDF allowed.');
     if ($file['size'] > 5 * 1024 * 1024) throw new RuntimeException('Max 5 MB.');
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo === false) throw new RuntimeException('Unable to verify uploaded file.');
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'application/pdf' => 'pdf'];
+    if (!isset($extensions[$mime])) throw new RuntimeException('Only JPG, PNG, WebP or PDF allowed.');
+    $ext = $extensions[$mime];
     $dir = dirname(__DIR__) . '/assets/uploads/disbursement/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $name = 'dis_' . time() . '_' . bin2hex(random_bytes(5)) . '.' . $ext;

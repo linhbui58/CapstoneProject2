@@ -1,6 +1,3 @@
-# Allow only image and PDF files to be served directly
-<FilesMatch "\.(php|php3|php4|php5|phtml|pl|py|jsp|asp|htm|html|shtml|sh|cgi)$">
-    Order allow,deny
-    Deny from all
+<FilesMatch "(?i)\.(php[0-9]*|phtml|phar|pht|pl|py|jsp|asp|aspx|htm|html|shtml|sh|cgi)$">
+    Require all denied
 </FilesMatch>
-Options -ExecCGI -Indexes

@@ -35,21 +35,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($file['error'] !== UPLOAD_ERR_OK) {
             $errors[] = 'Image upload failed. Please try again.';
         } else {
-            $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            $allowed = ['jpg','jpeg','png','webp','gif'];
-            if (!in_array($ext, $allowed, true)) {
-                $errors[] = 'Image must be JPG, PNG, WEBP or GIF.';
-            } elseif (getimagesize($file['tmp_name']) === false) {
-                $errors[] = 'The selected file is not a valid image.';
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo === false) {
+                $errors[] = 'Unable to verify uploaded image.';
             } else {
-                $filename = 'camp_' . time() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
-                $upload_dir = dirname(__DIR__) . '/assets/images/campaigns/';
-                if (!is_dir($upload_dir) && !mkdir($upload_dir, 0755, true) && !is_dir($upload_dir)) {
-                    $errors[] = 'Failed to prepare the image upload directory.';
-                } elseif (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
-                    $image_url = '/assets/images/campaigns/' . $filename;
+                $mime = finfo_file($finfo, $file['tmp_name']);
+                finfo_close($finfo);
+                $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+                if (!isset($extensions[$mime]) || getimagesize($file['tmp_name']) === false) {
+                    $errors[] = 'The selected file is not a valid JPG, PNG, WEBP or GIF image.';
                 } else {
-                    $errors[] = 'Failed to upload image.';
+                    $filename = 'camp_' . time() . '_' . bin2hex(random_bytes(8)) . '.' . $extensions[$mime];
+                    $upload_dir = dirname(__DIR__) . '/assets/images/campaigns/';
+                    if (!is_dir($upload_dir) && !mkdir($upload_dir, 0755, true) && !is_dir($upload_dir)) {
+                        $errors[] = 'Failed to prepare the image upload directory.';
+                    } elseif (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
+                        $image_url = '/assets/images/campaigns/' . $filename;
+                    } else {
+                        $errors[] = 'Failed to upload image.';
+                    }
                 }
             }
         }

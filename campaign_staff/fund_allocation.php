@@ -17,8 +17,6 @@ function uploadEvidence(array $file): ?string
         throw new RuntimeException('File upload error code: ' . $file['error']);
     }
 
-    $allowedMime = ['image/jpeg','image/png','image/gif','image/webp','application/pdf'];
-    $allowedExt  = ['jpg','jpeg','png','gif','webp','pdf'];
     $maxSize     = 5 * 1024 * 1024; // 5 MB
 
     if ($file['size'] > $maxSize) {
@@ -26,18 +24,24 @@ function uploadEvidence(array $file): ?string
     }
 
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime  = finfo_file($finfo, $file['tmp_name']);
+    if ($finfo === false) {
+        throw new RuntimeException('Unable to verify uploaded file.');
+    }
+    $mime = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
 
-    if (!in_array($mime, $allowedMime, true)) {
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        'application/pdf' => 'pdf',
+    ];
+    if (!isset($extensions[$mime])) {
         throw new RuntimeException('Invalid file type. Only JPG, PNG, GIF, WebP and PDF are allowed.');
     }
 
-    $ext      = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, $allowedExt, true)) {
-        throw new RuntimeException('Invalid file extension.');
-    }
-
+    $ext = $extensions[$mime];
     $uploadDir = dirname(__DIR__) . '/assets/uploads/evidence/';
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0755, true);

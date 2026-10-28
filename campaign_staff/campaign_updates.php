@@ -12,13 +12,15 @@ $errors = [];
 function uploadUpdateImage(array $file): ?string {
     if ($file['error'] === UPLOAD_ERR_NO_FILE) return null;
     if ($file['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Upload error: ' . $file['error']);
-    $allowed = ['image/jpeg','image/png','image/gif','image/webp'];
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime  = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    if (!in_array($mime, $allowed)) throw new RuntimeException('Only JPG, PNG, GIF, WebP images allowed.');
     if ($file['size'] > 5 * 1024 * 1024) throw new RuntimeException('Image must be under 5 MB.');
-    $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo === false) throw new RuntimeException('Unable to verify uploaded image.');
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+    if (!isset($extensions[$mime])) throw new RuntimeException('Only JPG, PNG, GIF, WebP images allowed.');
+    $ext = $extensions[$mime];
     $dir  = dirname(__DIR__) . '/assets/uploads/updates/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
     $name = 'upd_' . time() . '_' . bin2hex(random_bytes(5)) . '.' . $ext;
