@@ -93,16 +93,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Notify manager
         $managers = $db->query("SELECT id FROM users WHERE role='manager' AND is_active=1");
         $camp_t = $db->query("SELECT title FROM campaigns WHERE id=$campaign_id")->fetch_assoc()['title'] ?? '';
-        $ct = $db->real_escape_string($camp_t);
+        $notificationMessage = 'Campaign Staff submitted a disbursement request for "' . $camp_t . '": '
+            . $title . ' (' . number_format($amount, 0, ',', '.') . ' VND). Please review.';
+        $notificationInsert = $db->prepare(
+            'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)'
+        );
+        if (!$notificationInsert) {
+            throw new RuntimeException('Unable to prepare manager notification: ' . $db->error);
+        }
+        $notificationTitle = 'New Disbursement Request';
+        $notificationType = 'system';
         if ($managers) {
             while ($m = $managers->fetch_assoc()) {
                 $mid = (int)$m['id'];
-                $db->query("INSERT INTO notifications (user_id, title, message, type)
-                            VALUES ($mid, 'New Disbursement Request',
-                                    'Campaign Staff submitted a disbursement request for \"$ct\": $t ('.number_format($amount,0,',','.').' VND). Please review.',
-                                    'system')");
+                if (!$notificationInsert->bind_param(
+                    'isss',
+                    $mid,
+                    $notificationTitle,
+                    $notificationMessage,
+                    $notificationType
+                ) || !$notificationInsert->execute()) {
+                    throw new RuntimeException('Unable to notify manager: ' . $notificationInsert->error);
+                }
             }
         }
+        $notificationInsert->close();
 
         setFlash('success', 'Disbursement request submitted. Manager has been notified.');
         redirect(SITE_URL . '/campaign_staff/disbursement_requests.php?campaign_id=' . $campaign_id);
