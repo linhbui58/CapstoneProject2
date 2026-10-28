@@ -141,7 +141,7 @@ For Gmail, use a Google App Password with 2-Step Verification enabled, not the a
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
-For an existing installation, import `database/migrations/20261026_disbursement_requests.sql`, `database/migrations/20261027_campaign_updates.sql`, and `database/migrations/20261028_payos_payment_provider.sql` into the application's selected database using phpMyAdmin. These add disbursement/campaign update tables, evidence columns, and the payOS provider marker. Import `database/migrations/20261028_sepay_webhook.sql` only if you continue using the separate SePay bank-account webhook for legacy donations. New installations get this schema from `database/full_setup.sql`.
+For an existing installation, import `database/migrations/20261026_disbursement_requests.sql`, `database/migrations/20261027_campaign_updates.sql`, `database/migrations/20261028_campaign_update_images.sql`, and `database/migrations/20261028_payos_payment_provider.sql` into the application's selected database using phpMyAdmin. These add disbursement/campaign update tables, ensure the campaign update image column exists, add evidence columns, and add the payOS provider marker. Import `database/migrations/20261028_sepay_webhook.sql` only if you continue using the separate SePay bank-account webhook for legacy donations. New installations get this schema from `database/full_setup.sql`.
 
 ### Step 5: Run the Application
 

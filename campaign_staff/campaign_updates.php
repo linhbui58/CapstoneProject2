@@ -63,27 +63,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $t = $db->real_escape_string($title);
         $c = $db->real_escape_string($content);
         $u = $image_url ? "'".$db->real_escape_string($image_url)."'" : 'NULL';
-        $db->query("INSERT INTO campaign_updates (campaign_id, title, content, image_url, posted_by, is_published)
-                    VALUES ($campaign_id, '$t', '$c', $u, $uid, $published)");
-
-        // Notify donors who donated to this campaign
-        $donors = $db->query("SELECT DISTINCT donor_id FROM donations WHERE campaign_id=$campaign_id AND status='verified'");
-        $camp_title = $db->query("SELECT title FROM campaigns WHERE id=$campaign_id")->fetch_assoc()['title'] ?? '';
-        $ct = $db->real_escape_string($camp_title);
-        $tt = $db->real_escape_string($title);
-        if ($donors) {
-            while ($d = $donors->fetch_assoc()) {
-                $did = (int)$d['donor_id'];
-                $db->query("INSERT INTO notifications (user_id, title, message, type)
-                            VALUES ($did,
-                                    'Campaign Update: $ct',
-                                    'New update posted: $tt. Check the campaign page for details.',
-                                    'campaign_update')");
-            }
+        $save_error = null;
+        try {
+            $saved = $db->query("INSERT INTO campaign_updates (campaign_id, title, content, image_url, posted_by, is_published)
+                                 VALUES ($campaign_id, '$t', '$c', $u, $uid, $published)");
+        } catch (mysqli_sql_exception $e) {
+            $saved = false;
+            $save_error = $e->getMessage();
         }
 
-        setFlash('success', 'Update published! Donors have been notified.');
-        redirect(SITE_URL . '/campaign_staff/campaign_updates.php?campaign_id=' . $campaign_id);
+        if (!$saved) {
+            error_log('Failed to save campaign update: ' . ($save_error ?? $db->error));
+            $errors[] = 'Unable to save the campaign update. Please try again or contact the administrator.';
+        } else {
+            // Notify donors who donated to this campaign
+            $donors = $db->query("SELECT DISTINCT donor_id FROM donations WHERE campaign_id=$campaign_id AND status='verified'");
+            $camp_title = $db->query("SELECT title FROM campaigns WHERE id=$campaign_id")->fetch_assoc()['title'] ?? '';
+            $ct = $db->real_escape_string($camp_title);
+            $tt = $db->real_escape_string($title);
+            if ($donors) {
+                while ($d = $donors->fetch_assoc()) {
+                    $did = (int)$d['donor_id'];
+                    $db->query("INSERT INTO notifications (user_id, title, message, type)
+                                VALUES ($did,
+                                        'Campaign Update: $ct',
+                                        'New update posted: $tt. Check the campaign page for details.',
+                                        'campaign_update')");
+                }
+            }
+
+            setFlash('success', 'Update published! Donors have been notified.');
+            redirect(SITE_URL . '/campaign_staff/campaign_updates.php?campaign_id=' . $campaign_id);
+        }
     }
 }
 
