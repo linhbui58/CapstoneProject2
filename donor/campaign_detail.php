@@ -273,7 +273,7 @@ $msg_count   = $messages    ? $messages->num_rows    : 0;
             <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04);transition:box-shadow .2s;"
                  onmouseover="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,.04)'">
                 <?php if ($upd['image_url']): ?>
-                <img src="<?= SITE_URL.'/' . htmlspecialchars($upd['image_url']) ?>"
+                <img src="<?= rtrim(SITE_URL, '/') . '/' . htmlspecialchars(ltrim($upd['image_url'], '/'), ENT_QUOTES, 'UTF-8') ?>"
                      style="width:100%;height:200px;object-fit:cover;display:block;" alt="">
                 <?php endif; ?>
                 <div style="padding:16px 18px;">
