@@ -48,7 +48,7 @@ a { text-decoration: none; color: inherit; }
 }
 .pub-nav-in {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     height: 66px;
     max-width: 1200px;
@@ -62,13 +62,14 @@ a { text-decoration: none; color: inherit; }
     gap: 10px;
     text-decoration: none;
     flex-shrink: 0;
+    min-width: 0;
 }
 .nav-logo-ico {
     display: block;
-    width: 205px;
+    width: clamp(140px, 18vw, 205px);
     max-width: 100%;
     height: auto;
-    flex-shrink: 0;
+    flex-shrink: 1;
     transition: transform .2s;
 }
 .nav-logo:hover .nav-logo-ico { transform: scale(1.07); }
@@ -94,6 +95,7 @@ a { text-decoration: none; color: inherit; }
     gap: 8px;
     justify-content: flex-end;
     flex-shrink: 0;
+    min-width: 0;
 }
 .btn-signin {
     color: #1447c0;
@@ -788,11 +790,12 @@ a { text-decoration: none; color: inherit; }
 }
 .foot-top-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: 48px;
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+    gap: clamp(24px, 4vw, 48px);
     padding-bottom: 48px;
     border-bottom: 1px solid rgba(255,255,255,.07);
 }
+.foot-top-grid > div { min-width: 0; }
 .foot-brand-row {
     display: flex;
     align-items: center;
@@ -801,10 +804,10 @@ a { text-decoration: none; color: inherit; }
 }
 .foot-logo-ico {
     display: block;
-    width: 205px;
+    width: clamp(140px, 18vw, 205px);
     max-width: 100%;
     height: auto;
-    flex-shrink: 0;
+    flex-shrink: 1;
 }
 .foot-about {
     font-size: .78rem;
@@ -860,6 +863,7 @@ a { text-decoration: none; color: inherit; }
 }
 .foot-nl-row input {
     flex: 1;
+    min-width: 0;
     border: none;
     background: transparent;
     padding: 8px 11px;
@@ -881,13 +885,13 @@ a { text-decoration: none; color: inherit; }
 .foot-nl-row button:hover { opacity: .85; }
 .foot-stats-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     padding: 20px 0;
     border-bottom: 1px solid rgba(255,255,255,.06);
 }
 .fstat-item { text-align: center; padding: 4px 0; border-right: 1px solid rgba(255,255,255,.06); }
 .fstat-item:last-child { border-right: none; }
-.fstat-val { font-size: 1.3rem; font-weight: 800; letter-spacing: -.025em; display: block; }
+.fstat-val { font-size: clamp(.85rem, 1.5vw, 1.3rem); font-weight: 800; letter-spacing: -.025em; display: block; overflow-wrap: anywhere; }
 .fstat-lbl { font-size: .63rem; color: rgba(255,255,255,.28); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; margin-top: 2px; display: block; }
 .foot-bottom-row {
     display: flex;
@@ -908,33 +912,32 @@ a { text-decoration: none; color: inherit; }
     .glass-card { display: none; }
     .feat-grid, .how-grid { grid-template-columns: 1fr 1fr; }
     .camps-grid { grid-template-columns: 1fr 1fr; }
-    .foot-top-grid { grid-template-columns: 1fr 1fr; gap: 30px; }
     .stats-bar-grid { grid-template-columns: 1fr 1fr; }
     .how-grid::before { display: none; }
 }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
     .pub-nav-in {
         grid-template-columns: minmax(0, 1fr) auto;
         height: auto;
         min-height: 66px;
-        padding: 10px 24px;
+        padding: 10px clamp(18px, 3vw, 40px);
         gap: 12px;
     }
     .nav-links-center { display: none; }
-    .nav-logo-ico { width: clamp(150px, 25vw, 205px); }
+    .foot-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
     .camps-grid, .feat-grid, .how-grid { grid-template-columns: 1fr; }
     .hero-title { font-size: 2.1rem; }
     .w { padding: 0 18px; }
     .pub-nav-in { padding: 9px 18px; gap: 8px; }
-    .nav-logo-ico { width: clamp(118px, 38vw, 165px); }
+    .nav-logo-ico { width: clamp(96px, 34vw, 150px); }
     .nav-actions { gap: 5px; }
-    .btn-signin { padding: 7px 9px; font-size: .74rem; }
-    .btn-donate-nav { padding: 8px 10px; font-size: .72rem; gap: 4px; }
+    .btn-signin { padding: 7px 8px; font-size: .7rem; }
+    .btn-donate-nav { padding: 7px 8px; font-size: .68rem; gap: 4px; }
     .pub-footer { padding-top: 40px; }
     .foot-top-grid { grid-template-columns: minmax(0, 1fr); gap: 26px; padding-bottom: 30px; }
-    .foot-logo-ico { width: min(205px, 70vw); }
+    .foot-logo-ico { width: clamp(140px, 55vw, 205px); }
     .foot-about { max-width: 100%; }
     .foot-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
     .fstat-item:nth-child(2) { border-right: none; }
