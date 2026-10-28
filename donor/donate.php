@@ -4,9 +4,19 @@ $activePage = 'donate';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
 require_once dirname(__DIR__) . '/includes/vnpay.php';
+require_once dirname(__DIR__) . '/includes/sepay_pg.php';
 
 $db  = getApplicationDB();
 $uid = $user['id'];
+$sepayConfigError = '';
+try {
+    $sepayConfig = getSePayGatewayConfig(false);
+} catch (Throwable $exception) {
+    error_log('SePay Payment Gateway configuration error on donation page: ' . $exception->getMessage());
+    $sepayConfig = [];
+    $sepayConfigError = 'SePay bank-transfer payments are not configured correctly. Please contact the administrator.';
+}
+$sepayReady = isset($sepayConfig['merchant_id'], $sepayConfig['merchant_secret_key'], $sepayConfig['mode']);
 $vnpayConfigError = '';
 try {
     $vnpayConfig = getVnPayConfig(false);
@@ -39,7 +49,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             </span>
             Make a Donation
         </h1>
-        <p style="color:#64748b;font-size:.8rem;margin:4px 0 0 46px;">Transfer first, then confirm the payment to send it for verification</p>
+        <p style="color:#64748b;font-size:.8rem;margin:4px 0 0 46px;">Complete payment through SePay; finance staff will verify it after payment is received</p>
     </div>
     <a href="<?= SITE_URL ?>/donor/campaigns.php"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:9px;color:#64748b;font-size:.81rem;font-weight:600;background:white;text-decoration:none;transition:all .15s;"
@@ -124,15 +134,20 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
                 <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:8px;">Select Payment Method</label>
                 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
                     <?php foreach ([
-                        ['bank_transfer', 'Chuyển khoản', 'bi-bank', '#1447c0'],
+                        ['bank_transfer', 'SePay VietQR', 'bi-bank', '#1447c0'],
                         ['credit_card', 'Credit Card', 'bi-credit-card', '#475569'],
                     ] as [$method, $label, $icon, $color]): ?>
                     <label class="payment-method-label" style="display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 8px;border:1.5px solid <?= $method === 'bank_transfer' ? '#1447c0' : '#e2e8f0' ?>;border-radius:9px;background:<?= $method === 'bank_transfer' ? '#dbeafe' : 'white' ?>;cursor:pointer;font-size:.77rem;font-weight:700;color:<?= $color ?>;text-align:center;">
-                        <input type="radio" name="payment_method" value="<?= $method ?>" <?= $method === 'bank_transfer' ? 'checked' : '' ?> <?= $method !== 'bank_transfer' && !$vnpayReady ? 'disabled' : '' ?> style="position:absolute;opacity:0;pointer-events:none;">
+                        <input type="radio" name="payment_method" value="<?= $method ?>" <?= $method === 'bank_transfer' ? 'checked' : '' ?> <?= ($method === 'bank_transfer' && !$sepayReady) || ($method === 'credit_card' && !$vnpayReady) ? 'disabled' : '' ?> style="position:absolute;opacity:0;pointer-events:none;">
                         <i class="bi <?= $icon ?>"></i><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
                     </label>
                     <?php endforeach; ?>
                 </div>
+                <?php if (!$sepayReady): ?>
+                <div role="status" style="margin-top:9px;padding:10px 12px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:.75rem;">
+                    <?= htmlspecialchars($sepayConfigError !== '' ? $sepayConfigError : 'SePay Payment Gateway credentials are not set up yet.', ENT_QUOTES, 'UTF-8') ?>
+                </div>
+                <?php endif; ?>
                 <?php if (!$vnpayReady): ?>
                 <div role="status" style="margin-top:9px;padding:10px 12px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:.75rem;">
                     <?= htmlspecialchars($vnpayConfigError !== '' ? $vnpayConfigError : 'Credit card payments are not set up yet.', ENT_QUOTES, 'UTF-8') ?>
@@ -151,21 +166,6 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             <i class="bi bi-credit-card me-2"></i>Pay by Credit Card
         </button>
         <div id="cardPaymentStatus" role="status" aria-live="polite" style="display:none;margin-top:12px;padding:11px;border-radius:8px;font-size:.8rem;"></div>
-    </div>
-
-    <div id="qrPanel" style="display:none;background:white;border:1px solid #bbf7d0;border-radius:12px;padding:20px;margin-bottom:16px;text-align:center;">
-        <h2 style="font-size:1rem;color:#15803d;margin:0 0 8px;">Scan to donate</h2>
-        <p id="qrBankDetails" style="font-size:.82rem;color:#475569;margin:0 0 12px;"></p>
-        <img id="donationQr" alt="VietQR donation code" style="display:block;width:240px;max-width:100%;height:auto;margin:0 auto 12px;">
-        <p style="font-size:.78rem;color:#475569;margin:0 0 5px;">Transfer content</p>
-        <code id="qrTransferInfo" style="font-size:.9rem;font-weight:700;color:#1447c0;"></code>
-        <p id="qrAmount" style="font-size:.9rem;font-weight:700;color:#15803d;margin:8px 0 0;"></p>
-        <div id="donationStatus" role="status" aria-live="polite" style="margin-top:16px;padding:12px;border-radius:9px;background:#fffbeb;color:#92400e;font-size:.82rem;">
-            Đang chờ giao dịch chuyển khoản vào tài khoản quỹ.
-        </div>
-        <a id="donationDetailsLink" href="#" style="display:none;margin-top:12px;" class="btn btn-outline-primary btn-sm">
-            Xem chi tiết quyên góp
-        </a>
     </div>
 
     <!-- Step 2: Transaction Details -->
@@ -332,7 +332,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 24px rgba(239,68,68,.45)'"
             onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 18px rgba(239,68,68,.35)'">
         <i class="bi bi-qr-code" style="font-size:.9rem;"></i>
-        Create QR Code / Donate
+        Continue to SePay
     </button>
 
 </form>
@@ -346,8 +346,8 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             <i class="bi bi-info-circle-fill"></i>What happens next?
         </div>
         <?php foreach([
-            ['bi-send-fill',          '#dbeafe','#1447c0', 'You create a donation and receive a QR code'],
-            ['bi-shield-check-fill',  '#ede9fe','#7c3aed', 'After your confirmation, Finance Staff reviews the transfer'],
+            ['bi-send-fill',          '#dbeafe','#1447c0', 'You create a donation and continue to SePay checkout'],
+            ['bi-shield-check-fill',  '#ede9fe','#7c3aed', 'After payment arrives, Finance Staff reviews the transaction'],
             ['bi-bell-fill',          '#dcfce7','#16a34a', 'You receive confirmation notification'],
             ['bi-graph-up-arrow',     '#fff7ed','#c2410c', 'Campaign progress updates automatically'],
         ] as [$ic,$bg,$color,$txt]): ?>
@@ -366,7 +366,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             <i class="bi bi-receipt" style="color:#7c3aed;"></i>Donation Summary
         </div>
         <div id="summaryAmount" style="font-size:1.6rem;font-weight:800;color:#16a34a;letter-spacing:-.03em;margin-bottom:4px;">—</div>
-        <div id="paymentSummaryHint" style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Scan the QR and transfer to the fund account</div>
+        <div id="paymentSummaryHint" style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Continue to SePay to complete the VietQR bank transfer</div>
         <div style="height:1px;background:#f1f5f9;margin-bottom:12px;"></div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:7px;">
             <span style="color:#64748b;">Campaign</span>
@@ -384,7 +384,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         </div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;">
             <span style="color:#64748b;">Status after submit</span>
-            <span id="summStatus" style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">Awaiting Transfer</span>
+            <span id="summStatus" style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">Awaiting Payment</span>
         </div>
     </div>
 
@@ -426,11 +426,11 @@ function clearAmtBtns() {
 
 const vnpayEndpoint = <?= json_encode(SITE_URL . '/donor/vnpay_checkout.php') ?>;
 const vnpayReady = <?= json_encode($vnpayReady) ?>;
+const sepayReady = <?= json_encode($sepayReady) ?>;
 const donationForm = document.getElementById('donateForm');
 const bankDonateButton = document.getElementById('bankDonateButton');
 const cardDonateButton = document.getElementById('cardDonateButton');
 const cardPaymentPanel = document.getElementById('cardPaymentPanel');
-let qrCreated = false;
 
 function getPaymentMethod() {
     return donationForm.querySelector('input[name="payment_method"]:checked')?.value || 'bank_transfer';
@@ -451,14 +451,13 @@ function setPaymentMethodUI() {
 
     bankDonateButton.style.display = bankTransfer ? 'flex' : 'none';
     cardDonateButton.style.display = bankTransfer ? 'none' : 'block';
-    document.getElementById('qrPanel').style.display = bankTransfer && qrCreated ? 'block' : 'none';
     cardPaymentPanel.style.display = bankTransfer ? 'none' : 'block';
     document.getElementById('summChannel').textContent = method === 'credit_card' ? 'Credit Card via VNPay' : 'Bank Transfer';
     document.getElementById('paymentSummaryHint').textContent = method === 'bank_transfer'
-        ? 'Scan the QR and transfer to the fund account'
+        ? 'Continue to SePay to complete your VietQR bank transfer'
         : 'VNPay securely processes your card payment in VND.';
     document.getElementById('summStatus').textContent = method === 'bank_transfer'
-        ? 'Awaiting Transfer'
+        ? 'Awaiting Payment'
         : 'Verified after VNPay confirms card payment.';
 }
 
@@ -562,6 +561,10 @@ donationForm.addEventListener('submit', async function (event) {
         }
         return;
     }
+    if (!sepayReady) {
+        alert('SePay bank-transfer payments are not configured. Please contact the administrator.');
+        return;
+    }
     const submitButton = form.querySelector('button[type="submit"]');
     const originalButtonHtml = submitButton.innerHTML;
     const formData = new FormData(form);
@@ -575,7 +578,7 @@ donationForm.addEventListener('submit', async function (event) {
     };
 
     submitButton.disabled = true;
-    submitButton.textContent = 'Creating QR code...';
+    submitButton.textContent = 'Connecting to SePay...';
     try {
         const response = await fetch(<?= json_encode(SITE_URL . '/donor/create_donation.php') ?>, {
             method: 'POST',
@@ -590,64 +593,20 @@ donationForm.addEventListener('submit', async function (event) {
             throw new Error(`The server returned an invalid response (HTTP ${response.status}). Check the hosting PHP error log.`);
         }
         if (!response.ok) {
-            throw new Error(result.error || `Unable to create the donation (HTTP ${response.status}).`);
+            throw new Error(result.error || `Unable to start SePay checkout (HTTP ${response.status}).`);
         }
-
-        document.getElementById('donationQr').src = result.qr_url;
-        qrCreated = true;
-        document.getElementById('qrBankDetails').textContent = `${result.bank_name} · ${result.account_number}`;
-        document.getElementById('qrTransferInfo').textContent = result.transfer_info;
-        document.getElementById('qrAmount').textContent = new Intl.NumberFormat('vi-VN').format(result.amount) + ' VND';
-        const donationStatus = document.getElementById('donationStatus');
-        const donationDetailsLink = document.getElementById('donationDetailsLink');
-        const donationDetailsUrl = <?= json_encode(SITE_URL . '/donor/donation_detail.php?id=') ?> + encodeURIComponent(result.donation_id);
-        let statusPolling = true;
-
-        donationDetailsLink.href = donationDetailsUrl;
-        async function checkDonationStatus() {
-            if (!statusPolling) return;
-
-            try {
-                const statusResponse = await fetch(
-                    <?= json_encode(SITE_URL . '/donor/donation_status.php?id=') ?> + encodeURIComponent(result.donation_id),
-                    { headers: { 'Accept': 'application/json' }, cache: 'no-store' }
-                );
-                const statusResult = await statusResponse.json();
-                if (!statusResponse.ok) throw new Error(statusResult.error || 'Không thể kiểm tra trạng thái giao dịch.');
-
-                if (statusResult.verification_status === 'verified') {
-                    statusPolling = false;
-                    donationStatus.textContent = 'Quyên góp đã được xác nhận thành công. Cảm ơn bạn đã đóng góp!';
-                    donationStatus.style.background = '#dcfce7';
-                    donationStatus.style.color = '#166534';
-                    donationDetailsLink.style.display = 'inline-block';
-                } else if (statusResult.verification_status === 'rejected') {
-                    statusPolling = false;
-                    donationStatus.textContent = statusResult.rejection_reason
-                        ? `Giao dịch chưa được xác nhận: ${statusResult.rejection_reason}`
-                        : 'Giao dịch chưa được xác nhận. Vui lòng xem chi tiết để biết thêm thông tin.';
-                    donationStatus.style.background = '#fee2e2';
-                    donationStatus.style.color = '#991b1b';
-                    donationDetailsLink.style.display = 'inline-block';
-                } else if (statusResult.verification_status === 'pending_verification') {
-                    donationStatus.textContent = 'Đã nhận được tiền chuyển khoản. Vui lòng chờ nhân viên tài chính xác nhận giao dịch.';
-                    donationStatus.style.background = '#dbeafe';
-                    donationStatus.style.color = '#1e40af';
-                    donationDetailsLink.style.display = 'inline-block';
-                    window.setTimeout(checkDonationStatus, 5000);
-                } else {
-                    donationStatus.textContent = 'Đang chờ giao dịch chuyển khoản vào tài khoản quỹ. Hệ thống sẽ tự cập nhật khi nhận được tiền.';
-                    window.setTimeout(checkDonationStatus, 5000);
-                }
-            } catch (error) {
-                donationStatus.textContent = `${error.message} Hệ thống sẽ thử lại sau ít giây.`;
-                window.setTimeout(checkDonationStatus, 10000);
-            }
-        }
-
-        document.getElementById('qrPanel').style.display = 'block';
-        document.getElementById('qrPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        checkDonationStatus();
+        const checkoutForm = document.createElement('form');
+        checkoutForm.method = 'POST';
+        checkoutForm.action = result.checkout_url;
+        Object.entries(result.checkout_fields).forEach(([name, value]) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            checkoutForm.appendChild(input);
+        });
+        document.body.appendChild(checkoutForm);
+        checkoutForm.submit();
     } catch (error) {
         alert(error.message);
     } finally {

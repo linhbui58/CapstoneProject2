@@ -1,5 +1,6 @@
 <?php
 require_once dirname(__DIR__) . '/includes/auth.php';
+require_once dirname(__DIR__) . '/includes/sepay_pg.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -55,45 +56,15 @@ if (mb_strlen($message) > 5000) {
 }
 
 $amount = (int) $amountInput;
-$vietQrConfigPath = dirname(__DIR__) . '/config/vietqr.php';
-$vietQrConfig = [];
-if (is_file($vietQrConfigPath)) {
-    ob_start();
-    try {
-        $loadedConfig = require $vietQrConfigPath;
-        $configOutput = ob_get_clean();
-    } catch (Throwable $exception) {
-        ob_end_clean();
-        error_log('VietQR configuration could not be loaded: ' . $exception->getMessage());
-        respond(500, ['error' => 'The VietQR configuration file has invalid PHP syntax. Check config/vietqr.php.']);
-    }
-
-    if ($configOutput !== '' || !is_array($loadedConfig)) {
-        error_log('VietQR configuration must return an array without producing output.');
-        respond(500, ['error' => 'VietQR configuration is invalid. Check the PHP opening tag and returned array in config/vietqr.php.']);
-    }
-    $vietQrConfig = $loadedConfig;
+try {
+    $sepayConfig = getSePayGatewayConfig();
+} catch (Throwable $exception) {
+    error_log('SePay Payment Gateway configuration error: ' . $exception->getMessage());
+    respond(503, ['error' => 'SePay Payment Gateway is not configured correctly. Please contact the administrator.']);
 }
-
-$readVietQrSetting = static function (string $environmentKey, string $constantName, string $configKey) use ($vietQrConfig): string {
-    $value = getenv($environmentKey);
-    if (!is_string($value) || trim($value) === '') {
-        $value = defined($constantName) ? constant($constantName) : ($vietQrConfig[$configKey] ?? '');
-    }
-
-    return is_scalar($value) ? trim((string) $value) : '';
-};
-
-$bankId        = strtoupper($readVietQrSetting('VIETQR_BANK_ID', 'VIETQR_BANK_ID', 'bank_id'));
-$accountNumber = $readVietQrSetting('VIETQR_ACCOUNT_NO', 'VIETQR_ACCOUNT_NO', 'account_no');
-$accountName   = $readVietQrSetting('VIETQR_ACCOUNT_NAME', 'VIETQR_ACCOUNT_NAME', 'account_name');
-$bankName      = $readVietQrSetting('VIETQR_BANK_NAME', 'VIETQR_BANK_NAME', 'bank_name');
-if ($bankName === '') {
-    $bankName = $bankId;
-}
-
-if (!preg_match('/^[A-Z0-9]{2,20}$/', $bankId) || !preg_match('/^[0-9]{6,30}$/', $accountNumber)) {
-    respond(503, ['error' => 'Fund bank details are missing or invalid. Configure bank_id and account_no in config/vietqr.php on the server.']);
+if ($sepayConfig['mode'] === 'production'
+    && (parse_url(SITE_URL, PHP_URL_SCHEME) !== 'https' || !parse_url(SITE_URL, PHP_URL_HOST))) {
+    respond(503, ['error' => 'SePay production payments require a public HTTPS site URL.']);
 }
 
 try {
@@ -149,26 +120,28 @@ try {
     }
     $transactionStarted = false;
 
-    $transferInfo = sprintf('DONATE %d %d', $donationId, $donorId);
-    $qrPath = sprintf(
-        'https://img.vietqr.io/image/%s-%s-qr_only.png',
-        rawurlencode($bankId),
-        rawurlencode($accountNumber)
-    );
-    $qrUrl = $qrPath . '?' . http_build_query([
-        'amount' => $amount,
-        'addInfo' => $transferInfo,
-        'accountName' => $accountName,
-    ], '', '&', PHP_QUERY_RFC3986);
+    $invoiceNumber = 'VCFD-' . $donationId;
+    $checkoutFields = [
+        'order_amount' => (string) $amount,
+        'merchant' => $sepayConfig['merchant_id'],
+        'currency' => 'VND',
+        'operation' => 'PURCHASE',
+        'order_description' => 'Donation ' . $donationId,
+        'order_invoice_number' => $invoiceNumber,
+        'payment_method' => 'BANK_TRANSFER',
+        'customer_id' => (string) $donorId,
+        'success_url' => SITE_URL . '/donor/sepay_return.php?result=success&id=' . $donationId,
+        'error_url' => SITE_URL . '/donor/sepay_return.php?result=error&id=' . $donationId,
+        'cancel_url' => SITE_URL . '/donor/sepay_return.php?result=cancel&id=' . $donationId,
+    ];
+    $checkoutFields['signature'] = signSePayCheckoutFields($checkoutFields, $sepayConfig['merchant_secret_key']);
 
     respond(201, [
         'donation_id' => $donationId,
         'amount' => $amount,
         'frequency' => $frequency,
-        'bank_name' => $bankName,
-        'account_number' => $accountNumber,
-        'transfer_info' => $transferInfo,
-        'qr_url' => $qrUrl,
+        'checkout_url' => getSePayCheckoutUrl($sepayConfig),
+        'checkout_fields' => $checkoutFields,
     ]);
 } catch (Throwable $exception) {
     if (!empty($transactionStarted) && isset($db) && $db instanceof mysqli) {

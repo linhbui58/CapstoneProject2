@@ -182,7 +182,7 @@ $freq_cfg = [
                             <span class="status-pill <?= $d['status'] ?>">
                                 <i class="bi bi-<?= $d['status']==='verified'?'check-circle-fill':($d['status']==='rejected'?'x-circle-fill':'clock-fill') ?>"></i>
                                 <?= empty($d['transaction_id']) && $d['status'] === 'pending'
-                                    ? 'Awaiting transfer'
+                                    ? ($d['channel'] === 'bank_transfer' ? 'Awaiting payment' : 'Awaiting transfer')
                                     : ucfirst(str_replace('_', ' ', $d['verification_status'] ?? $d['status'])) ?>
                             </span>
                             <?php if ($d['status'] === 'rejected' && $d['rejection_reason']): ?>

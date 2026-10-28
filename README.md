@@ -97,18 +97,23 @@ return [
 
 The same `VIETQR_BANK_ID`, `VIETQR_BANK_NAME`, `VIETQR_ACCOUNT_NO`, and `VIETQR_ACCOUNT_NAME` PHP environment variables or constants are also supported; environment variables take precedence. Do not commit database credentials or the fund account configuration to the repository.
 
-Bank transfers use VietQR to generate the donor's QR code. To automatically detect funds received and notify the donor, connect the receiving bank account to SePay Webhooks. Import `database/migrations/20261028_sepay_webhook.sql` into an existing database; new installations get the required SePay transaction ID column from `database/full_setup.sql`.
+Bank donations use SePay Payment Gateway checkout and SePay's Payment Gateway IPN. On the SePay merchant page, configure the IPN URL as `https://your-site/donor/sepay_pg_ipn.php`, select JSON, choose Secret Key authentication, and use the same IPN secret configured below. Set the successful, error, and cancel callbacks through the checkout form automatically. SePay calls the IPN after payment; the donor is notified that payment arrived and is awaiting finance verification. The IPN never marks donations as verified.
 
-Create `config/sepay.php` on the server and add the API key configured for the SePay webhook:
+Create `config/sepay.php` on the server with the credentials for the selected Payment Gateway environment:
 
 ```php
 <?php
 return [
-    'api_key' => 'your_sepay_webhook_api_key',
+    'merchant_id' => 'SP-TEST-your_sandbox_merchant_id',
+    'merchant_secret_key' => 'your_sandbox_merchant_secret',
+    'mode' => 'sandbox',
+    'ipn_secret_key' => 'the_secret_configured_for_payment_gateway_ipn',
 ];
 ```
 
-In SePay, create a webhook for incoming transfers, set its URL to `https://your-site/donor/sepay_webhook.php`, choose API Key authentication, and use the same key. Configure it for the VietQR receiving account and, if desired, filter transfer content with the `DONATE` prefix. The webhook matches the QR's `DONATE {donation_id} {donor_id}` transfer content. On a match, the donor is notified that the money has arrived and is waiting for finance staff verification; the donation is not marked verified automatically. Do not commit the SePay API key.
+SePay Test Mode requires the Sandbox merchant ID and secret, and the code submits checkout to `https://pay-sandbox.sepay.vn/v1/checkout/init`. A production merchant ID and secret only work with `mode => 'production'` and `https://pay.sepay.vn/v1/checkout/init`. Do not mix sandbox and production credentials. Rotate any merchant or IPN secret that has been exposed, and never commit credentials.
+
+Deploy the application before configuring the IPN. The callback URL must be publicly reachable over HTTPS. The separate SePay bank-account Webhook endpoint at `donor/sepay_webhook.php` is retained for direct bank-account transaction notifications; it uses `api_key` in `config/sepay.php` and is not the Payment Gateway IPN. Configure that key only if using the separate bank-account webhook integration.
 
 Credit card donations are processed by VNPay in VND. Create `config/vnpay.php` on the server with the merchant credentials provided by VNPay:
 
@@ -137,7 +142,7 @@ For Gmail, use a Google App Password with 2-Step Verification enabled, not the a
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
-For an existing installation, import `database/migrations/20261026_disbursement_requests.sql`, `database/migrations/20261027_campaign_updates.sql`, and `database/migrations/20261028_sepay_webhook.sql` into the application's selected database using phpMyAdmin. These add the disbursement request and campaign update tables, evidence columns for completed disbursements, and SePay webhook deduplication. New installations get this schema from `database/full_setup.sql`.
+For an existing installation, import `database/migrations/20261026_disbursement_requests.sql` and `database/migrations/20261027_campaign_updates.sql` into the application's selected database using phpMyAdmin. These add the disbursement request and campaign update tables and evidence columns for completed disbursements. Import `database/migrations/20261028_sepay_webhook.sql` only if you use the separate SePay bank-account Webhook endpoint. New installations get this schema from `database/full_setup.sql`.
 
 ### Step 5: Run the Application
 

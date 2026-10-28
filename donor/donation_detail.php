@@ -126,16 +126,18 @@ if (!empty($donation['txn_id'])) {
                     <dd class="col-sm-8">
                         <span class="status-pill <?= str_replace('_verification','',$donation['verification_status'] ?? 'pending') ?>">
                             <?= empty($donation['txn_id'])
-                                ? 'Awaiting transfer'
+                                ? ($donation['channel'] === 'bank_transfer' ? 'Awaiting payment' : 'Awaiting transfer')
                                 : (($donation['verification_status'] ?? '') === 'pending_verification'
-                                    ? 'Transfer received · Awaiting finance'
+                                    ? 'Payment received · Awaiting finance'
                                     : ucfirst(str_replace('_', ' ', $donation['verification_status'] ?? 'pending'))) ?>
                         </span>
+                        <div id="paymentStatusHint" class="small text-muted mt-1">
                         <?php if (empty($donation['txn_id'])): ?>
-                        <div class="small text-muted mt-1">Waiting for the bank to report the incoming transfer. Finance staff will verify it after it arrives.</div>
+                            Waiting for SePay to confirm the payment. Finance staff will verify it after confirmation.
                         <?php elseif (($donation['verification_status'] ?? '') === 'pending_verification'): ?>
-                        <div class="small text-primary mt-1">Transfer received. Please wait for finance staff to verify it.</div>
+                            Payment received. Please wait for finance staff to verify it.
                         <?php endif; ?>
+                        </div>
                     </dd>
 
                     <?php if ($donation['rejection_reason']): ?>
@@ -203,5 +205,29 @@ if (!empty($donation['txn_id'])) {
         <?php endif; ?>
     </div>
 </div>
+
+<?php if (empty($donation['txn_id']) && $donation['channel'] === 'bank_transfer' && $donation['status'] === 'pending'): ?>
+<script>
+(() => {
+    const statusUrl = <?= json_encode(SITE_URL . '/donor/donation_status.php?id=' . (int) $donation['id']) ?>;
+    const checkPaymentStatus = async () => {
+        try {
+            const response = await fetch(statusUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+            const status = await response.json();
+            if (!response.ok) throw new Error(status.error || 'Unable to refresh payment status.');
+            if (status.verification_status !== 'awaiting_transfer') {
+                window.location.reload();
+                return;
+            }
+        } catch (error) {
+            const hint = document.getElementById('paymentStatusHint');
+            if (hint) hint.textContent = `${error.message} Retrying shortly.`;
+        }
+        window.setTimeout(checkPaymentStatus, 5000);
+    };
+    window.setTimeout(checkPaymentStatus, 5000);
+})();
+</script>
+<?php endif; ?>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>
