@@ -97,23 +97,22 @@ return [
 
 The same `VIETQR_BANK_ID`, `VIETQR_BANK_NAME`, `VIETQR_ACCOUNT_NO`, and `VIETQR_ACCOUNT_NAME` PHP environment variables or constants are also supported; environment variables take precedence. Do not commit database credentials or the fund account configuration to the repository.
 
-Bank donations use SePay Payment Gateway checkout and SePay's Payment Gateway IPN. On the SePay merchant page, configure the IPN URL as `https://your-site/donor/sepay_pg_ipn.php`, select JSON, choose Secret Key authentication, and use the same IPN secret configured below. Set the successful, error, and cancel callbacks through the checkout form automatically. SePay calls the IPN after payment; the donor is notified that payment arrived and is awaiting finance verification. The IPN never marks donations as verified.
+Bank donations use payOS checkout. On InfinityFree free hosting, do not depend on incoming webhooks: the site's browser security blocks server-to-server callbacks. The donor's donation detail page instead asks the payOS API for the payment status; only a confirmed `PAID` status with an exact amount match creates a transaction waiting for finance staff verification.
 
-Create `config/sepay.php` on the server with the credentials for the selected Payment Gateway environment:
+Copy `config/payos.example.php` to `config/payos.php` on the server and add the payOS credentials from the payment channel:
 
 ```php
 <?php
 return [
-    'merchant_id' => 'SP-TEST-ABC123',
-    'merchant_secret_key' => 'replace_with_your_sandbox_merchant_secret',
-    'mode' => 'sandbox',
-    'ipn_secret_key' => 'the_secret_configured_for_payment_gateway_ipn',
+    'client_id' => 'your_payos_client_id',
+    'api_key' => 'your_payos_api_key',
+    'checksum_key' => 'your_payos_checksum_key',
 ];
 ```
 
-SePay Test Mode requires the Sandbox merchant ID and secret, and the code submits checkout to `https://pay-sandbox.sepay.vn/v1/checkout/init`. A production merchant ID and secret only work with `mode => 'production'` and `https://pay.sepay.vn/v1/checkout/init`. Do not mix sandbox and production credentials. Rotate any merchant or IPN secret that has been exposed, and never commit credentials.
+The private `config/payos.php` file is excluded from Git. Configure `SITE_URL` as the public HTTPS address. Do not configure a payOS webhook to point at InfinityFree free hosting; its callback cannot reach the application. The current integration does not need an inbound webhook. Keep the payOS API credentials private and rotate any credentials that have been exposed.
 
-Deploy the application before configuring the IPN. The callback URL must be publicly reachable over HTTPS. The separate SePay bank-account Webhook endpoint at `donor/sepay_webhook.php` is retained for direct bank-account transaction notifications; it uses `api_key` in `config/sepay.php` and is not the Payment Gateway IPN. Configure that key only if using the separate bank-account webhook integration.
+For existing installations, import `database/migrations/20261028_payos_payment_provider.sql` to add the provider marker used to distinguish new payOS donations from older SePay donations. New installations include this column in `database/full_setup.sql`. Old SePay IPN and bank-webhook endpoints remain for legacy records but are not used to start new bank-transfer donations.
 
 Credit card donations are processed by VNPay in VND. Create `config/vnpay.php` on the server with the merchant credentials provided by VNPay:
 
@@ -142,7 +141,7 @@ For Gmail, use a Google App Password with 2-Step Verification enabled, not the a
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
-For an existing installation, import `database/migrations/20261026_disbursement_requests.sql` and `database/migrations/20261027_campaign_updates.sql` into the application's selected database using phpMyAdmin. These add the disbursement request and campaign update tables and evidence columns for completed disbursements. Import `database/migrations/20261028_sepay_webhook.sql` only if you use the separate SePay bank-account Webhook endpoint. New installations get this schema from `database/full_setup.sql`.
+For an existing installation, import `database/migrations/20261026_disbursement_requests.sql`, `database/migrations/20261027_campaign_updates.sql`, and `database/migrations/20261028_payos_payment_provider.sql` into the application's selected database using phpMyAdmin. These add disbursement/campaign update tables, evidence columns, and the payOS provider marker. Import `database/migrations/20261028_sepay_webhook.sql` only if you continue using the separate SePay bank-account webhook for legacy donations. New installations get this schema from `database/full_setup.sql`.
 
 ### Step 5: Run the Application
 

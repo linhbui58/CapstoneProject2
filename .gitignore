@@ -4,6 +4,7 @@ config/vietqr.php
 config/sepay.php
 config/vnpay.php
 config/paypal.php
+config/payos.php
 config/mailer.php
 config/config.php
 config.php

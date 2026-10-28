@@ -133,7 +133,7 @@ if (!empty($donation['txn_id'])) {
                         </span>
                         <div id="paymentStatusHint" class="small text-muted mt-1">
                         <?php if (empty($donation['txn_id'])): ?>
-                            Waiting for SePay to confirm the payment. Finance staff will verify it after confirmation.
+                            Waiting for payOS to confirm the payment. Finance staff will verify it after confirmation.
                         <?php elseif (($donation['verification_status'] ?? '') === 'pending_verification'): ?>
                             Payment received. Please wait for finance staff to verify it.
                         <?php endif; ?>
@@ -206,7 +206,8 @@ if (!empty($donation['txn_id'])) {
     </div>
 </div>
 
-<?php if (empty($donation['txn_id']) && $donation['channel'] === 'bank_transfer' && $donation['status'] === 'pending'): ?>
+<?php if (empty($donation['txn_id']) && $donation['channel'] === 'bank_transfer'
+    && ($donation['payment_provider'] ?? '') === 'payos' && $donation['status'] === 'pending'): ?>
 <script>
 (() => {
     const statusUrl = <?= json_encode(SITE_URL . '/donor/donation_status.php?id=' . (int) $donation['id']) ?>;

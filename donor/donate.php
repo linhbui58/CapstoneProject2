@@ -4,19 +4,19 @@ $activePage = 'donate';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('donor');
 require_once dirname(__DIR__) . '/includes/vnpay.php';
-require_once dirname(__DIR__) . '/includes/sepay_pg.php';
+require_once dirname(__DIR__) . '/includes/payos.php';
 
 $db  = getApplicationDB();
 $uid = $user['id'];
-$sepayConfigError = '';
+$payOsConfigError = '';
 try {
-    $sepayConfig = getSePayGatewayConfig(false);
+    $payOsConfig = getPayOsConfig(false);
 } catch (Throwable $exception) {
-    error_log('SePay Payment Gateway configuration error on donation page: ' . $exception->getMessage());
-    $sepayConfig = [];
-    $sepayConfigError = 'SePay bank-transfer payments are not configured correctly. Please contact the administrator.';
+    error_log('payOS configuration error on donation page: ' . $exception->getMessage());
+    $payOsConfig = [];
+    $payOsConfigError = 'Bank-transfer payments are not configured correctly. Please contact the administrator.';
 }
-$sepayReady = isset($sepayConfig['merchant_id'], $sepayConfig['merchant_secret_key'], $sepayConfig['mode']);
+$payOsReady = isset($payOsConfig['client_id'], $payOsConfig['api_key'], $payOsConfig['checksum_key']);
 $vnpayConfigError = '';
 try {
     $vnpayConfig = getVnPayConfig(false);
@@ -49,7 +49,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             </span>
             Make a Donation
         </h1>
-        <p style="color:#64748b;font-size:.8rem;margin:4px 0 0 46px;">Complete payment through SePay; finance staff will verify it after payment is received</p>
+        <p style="color:#64748b;font-size:.8rem;margin:4px 0 0 46px;">Complete payment through payOS; finance staff will verify it after payment is received</p>
     </div>
     <a href="<?= SITE_URL ?>/donor/campaigns.php"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:9px;color:#64748b;font-size:.81rem;font-weight:600;background:white;text-decoration:none;transition:all .15s;"
@@ -134,18 +134,18 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
                 <label style="display:block;font-size:.74rem;font-weight:600;color:#374151;margin-bottom:8px;">Select Payment Method</label>
                 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
                     <?php foreach ([
-                        ['bank_transfer', 'SePay VietQR', 'bi-bank', '#1447c0'],
+                        ['bank_transfer', 'Bank Transfer via payOS', 'bi-bank', '#1447c0'],
                         ['credit_card', 'Credit Card', 'bi-credit-card', '#475569'],
                     ] as [$method, $label, $icon, $color]): ?>
                     <label class="payment-method-label" style="display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 8px;border:1.5px solid <?= $method === 'bank_transfer' ? '#1447c0' : '#e2e8f0' ?>;border-radius:9px;background:<?= $method === 'bank_transfer' ? '#dbeafe' : 'white' ?>;cursor:pointer;font-size:.77rem;font-weight:700;color:<?= $color ?>;text-align:center;">
-                        <input type="radio" name="payment_method" value="<?= $method ?>" <?= $method === 'bank_transfer' ? 'checked' : '' ?> <?= ($method === 'bank_transfer' && !$sepayReady) || ($method === 'credit_card' && !$vnpayReady) ? 'disabled' : '' ?> style="position:absolute;opacity:0;pointer-events:none;">
+                        <input type="radio" name="payment_method" value="<?= $method ?>" <?= $method === 'bank_transfer' ? 'checked' : '' ?> <?= ($method === 'bank_transfer' && !$payOsReady) || ($method === 'credit_card' && !$vnpayReady) ? 'disabled' : '' ?> style="position:absolute;opacity:0;pointer-events:none;">
                         <i class="bi <?= $icon ?>"></i><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
                     </label>
                     <?php endforeach; ?>
                 </div>
-                <?php if (!$sepayReady): ?>
+                <?php if (!$payOsReady): ?>
                 <div role="status" style="margin-top:9px;padding:10px 12px;border-radius:8px;background:#fff7ed;color:#9a3412;font-size:.75rem;">
-                    <?= htmlspecialchars($sepayConfigError !== '' ? $sepayConfigError : 'SePay Payment Gateway credentials are not set up yet.', ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars($payOsConfigError !== '' ? $payOsConfigError : 'payOS credentials are not set up yet.', ENT_QUOTES, 'UTF-8') ?>
                 </div>
                 <?php endif; ?>
                 <?php if (!$vnpayReady): ?>
@@ -332,7 +332,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 7px 24px rgba(239,68,68,.45)'"
             onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 18px rgba(239,68,68,.35)'">
         <i class="bi bi-qr-code" style="font-size:.9rem;"></i>
-        Continue to SePay
+        Continue to payOS
     </button>
 
 </form>
@@ -346,7 +346,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             <i class="bi bi-info-circle-fill"></i>What happens next?
         </div>
         <?php foreach([
-            ['bi-send-fill',          '#dbeafe','#1447c0', 'You create a donation and continue to SePay checkout'],
+            ['bi-send-fill',          '#dbeafe','#1447c0', 'You create a donation and continue to payOS checkout'],
             ['bi-shield-check-fill',  '#ede9fe','#7c3aed', 'After payment arrives, Finance Staff reviews the transaction'],
             ['bi-bell-fill',          '#dcfce7','#16a34a', 'You receive confirmation notification'],
             ['bi-graph-up-arrow',     '#fff7ed','#c2410c', 'Campaign progress updates automatically'],
@@ -366,7 +366,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             <i class="bi bi-receipt" style="color:#7c3aed;"></i>Donation Summary
         </div>
         <div id="summaryAmount" style="font-size:1.6rem;font-weight:800;color:#16a34a;letter-spacing:-.03em;margin-bottom:4px;">—</div>
-        <div id="paymentSummaryHint" style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Continue to SePay to complete the VietQR bank transfer</div>
+        <div id="paymentSummaryHint" style="font-size:.72rem;color:#94a3b8;margin-bottom:12px;">Continue to payOS to complete your VietQR bank transfer</div>
         <div style="height:1px;background:#f1f5f9;margin-bottom:12px;"></div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;margin-bottom:7px;">
             <span style="color:#64748b;">Campaign</span>
@@ -426,7 +426,7 @@ function clearAmtBtns() {
 
 const vnpayEndpoint = <?= json_encode(SITE_URL . '/donor/vnpay_checkout.php') ?>;
 const vnpayReady = <?= json_encode($vnpayReady) ?>;
-const sepayReady = <?= json_encode($sepayReady) ?>;
+const payOsReady = <?= json_encode($payOsReady) ?>;
 const donationForm = document.getElementById('donateForm');
 const bankDonateButton = document.getElementById('bankDonateButton');
 const cardDonateButton = document.getElementById('cardDonateButton');
@@ -454,7 +454,7 @@ function setPaymentMethodUI() {
     cardPaymentPanel.style.display = bankTransfer ? 'none' : 'block';
     document.getElementById('summChannel').textContent = method === 'credit_card' ? 'Credit Card via VNPay' : 'Bank Transfer';
     document.getElementById('paymentSummaryHint').textContent = method === 'bank_transfer'
-        ? 'Continue to SePay to complete your VietQR bank transfer'
+        ? 'Continue to payOS to complete your VietQR bank transfer'
         : 'VNPay securely processes your card payment in VND.';
     document.getElementById('summStatus').textContent = method === 'bank_transfer'
         ? 'Awaiting Payment'
@@ -561,8 +561,8 @@ donationForm.addEventListener('submit', async function (event) {
         }
         return;
     }
-    if (!sepayReady) {
-        alert('SePay bank-transfer payments are not configured. Please contact the administrator.');
+    if (!payOsReady) {
+        alert('payOS bank-transfer payments are not configured. Please contact the administrator.');
         return;
     }
     const submitButton = form.querySelector('button[type="submit"]');
@@ -578,7 +578,7 @@ donationForm.addEventListener('submit', async function (event) {
     };
 
     submitButton.disabled = true;
-    submitButton.textContent = 'Connecting to SePay...';
+    submitButton.textContent = 'Connecting to payOS...';
     try {
         const response = await fetch(<?= json_encode(SITE_URL . '/donor/create_donation.php') ?>, {
             method: 'POST',
@@ -593,20 +593,9 @@ donationForm.addEventListener('submit', async function (event) {
             throw new Error(`The server returned an invalid response (HTTP ${response.status}). Check the hosting PHP error log.`);
         }
         if (!response.ok) {
-            throw new Error(result.error || `Unable to start SePay checkout (HTTP ${response.status}).`);
+            throw new Error(result.error || `Unable to start payOS checkout (HTTP ${response.status}).`);
         }
-        const checkoutForm = document.createElement('form');
-        checkoutForm.method = 'POST';
-        checkoutForm.action = result.checkout_url;
-        Object.entries(result.checkout_fields).forEach(([name, value]) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = name;
-            input.value = value;
-            checkoutForm.appendChild(input);
-        });
-        document.body.appendChild(checkoutForm);
-        checkoutForm.submit();
+        window.location.assign(result.checkout_url);
     } catch (error) {
         alert(error.message);
     } finally {

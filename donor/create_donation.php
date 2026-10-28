@@ -1,6 +1,6 @@
 <?php
 require_once dirname(__DIR__) . '/includes/auth.php';
-require_once dirname(__DIR__) . '/includes/sepay_pg.php';
+require_once dirname(__DIR__) . '/includes/payos.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -57,14 +57,13 @@ if (mb_strlen($message) > 5000) {
 
 $amount = (int) $amountInput;
 try {
-    $sepayConfig = getSePayGatewayConfig();
+    $payOsConfig = getPayOsConfig();
 } catch (Throwable $exception) {
-    error_log('SePay Payment Gateway configuration error: ' . $exception->getMessage());
-    respond(503, ['error' => 'SePay Payment Gateway is not configured correctly. Please contact the administrator.']);
+    error_log('payOS configuration error: ' . $exception->getMessage());
+    respond(503, ['error' => 'payOS is not configured correctly. Please contact the administrator.']);
 }
-if ($sepayConfig['mode'] === 'production'
-    && (parse_url(SITE_URL, PHP_URL_SCHEME) !== 'https' || !parse_url(SITE_URL, PHP_URL_HOST))) {
-    respond(503, ['error' => 'SePay production payments require a public HTTPS site URL.']);
+if (parse_url(SITE_URL, PHP_URL_SCHEME) !== 'https' || !parse_url(SITE_URL, PHP_URL_HOST)) {
+    respond(503, ['error' => 'payOS payments require a public HTTPS site URL.']);
 }
 
 try {
@@ -94,10 +93,10 @@ try {
     $transactionStarted = true;
     $failureStage = 'saving the donation';
     $donationInsert = $db->prepare($campaignId === null
-        ? "INSERT INTO donations (donor_id, campaign_id, amount, channel, frequency, message, is_anonymous, status)
-           VALUES (?, NULL, ?, 'bank_transfer', ?, ?, ?, 'pending')"
-        : "INSERT INTO donations (donor_id, campaign_id, amount, channel, frequency, message, is_anonymous, status)
-           VALUES (?, ?, ?, 'bank_transfer', ?, ?, ?, 'pending')"
+        ? "INSERT INTO donations (donor_id, campaign_id, amount, channel, payment_provider, frequency, message, is_anonymous, status)
+           VALUES (?, NULL, ?, 'bank_transfer', 'payos', ?, ?, ?, 'pending')"
+        : "INSERT INTO donations (donor_id, campaign_id, amount, channel, payment_provider, frequency, message, is_anonymous, status)
+           VALUES (?, ?, ?, 'bank_transfer', 'payos', ?, ?, ?, 'pending')"
     );
     if (!$donationInsert) {
         throw new RuntimeException('Unable to prepare donation insert: ' . $db->error);
@@ -120,35 +119,28 @@ try {
     }
     $transactionStarted = false;
 
-    $invoiceNumber = 'VCFD-' . $donationId;
-    $checkoutFields = [
-        'merchant' => $sepayConfig['merchant_id'],
-        'currency' => 'VND',
-        'order_amount' => (string) $amount,
-        'operation' => 'PURCHASE',
-        'order_description' => 'Donation ' . $donationId,
-        'payment_method' => 'BANK_TRANSFER',
-        'order_invoice_number' => $invoiceNumber,
-        'customer_id' => (string) $donorId,
-        'success_url' => SITE_URL . '/donor/sepay_return.php?result=success&id=' . $donationId,
-        'error_url' => SITE_URL . '/donor/sepay_return.php?result=error&id=' . $donationId,
-        'cancel_url' => SITE_URL . '/donor/sepay_return.php?result=cancel&id=' . $donationId,
-    ];
-    $checkoutFields['signature'] = signSePayCheckoutFields($checkoutFields, $sepayConfig['merchant_secret_key']);
+    $returnUrl = SITE_URL . '/donor/donation_detail.php?id=' . $donationId;
+    $failureStage = 'creating the payOS checkout';
+    $checkoutUrl = createPayOsPaymentLink(
+        $payOsConfig,
+        $donationId,
+        $amount,
+        $returnUrl,
+        $returnUrl . '&payment=cancel'
+    );
 
     respond(201, [
         'donation_id' => $donationId,
         'amount' => $amount,
         'frequency' => $frequency,
-        'checkout_url' => getSePayCheckoutUrl($sepayConfig),
-        'checkout_fields' => $checkoutFields,
+        'checkout_url' => $checkoutUrl,
     ]);
 } catch (Throwable $exception) {
     if (!empty($transactionStarted) && isset($db) && $db instanceof mysqli) {
         try {
             $db->rollback();
         } catch (Throwable $rollbackException) {
-            error_log('QR donation rollback failed: ' . $rollbackException->getMessage());
+            error_log(            'Donation rollback failed: ' . $rollbackException->getMessage());
         }
     }
     $errorCode = (string) $exception->getCode();
@@ -158,7 +150,7 @@ try {
     $errorCode = preg_match('/^[A-Za-z0-9_-]{1,32}$/', $errorCode) ? $errorCode : 'unknown';
     $errorReference = bin2hex(random_bytes(4));
     error_log(sprintf(
-        'QR donation creation failed [%s] while %s (code %s): %s',
+        'Donation creation failed [%s] while %s (code %s): %s',
         $errorReference,
         $failureStage ?? 'processing the request',
         $errorCode,

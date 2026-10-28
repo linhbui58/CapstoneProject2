@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS donations (
     campaign_id INT,
     amount DECIMAL(15,2) NOT NULL,
     channel ENUM('bank_transfer', 'e_wallet', 'credit_card', 'paypal', 'cash') NOT NULL,
+    payment_provider VARCHAR(20) NOT NULL DEFAULT 'legacy',
     frequency ENUM('one_time', 'monthly', 'quarterly', 'yearly') NOT NULL DEFAULT 'one_time',
     message TEXT,
     is_anonymous TINYINT(1) DEFAULT 0,
