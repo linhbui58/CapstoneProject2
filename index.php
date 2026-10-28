@@ -47,14 +47,14 @@ a { text-decoration: none; color: inherit; }
     box-shadow: 0 1px 20px rgba(0,0,0,.06);
 }
 .pub-nav-in {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    display: flex;
+    justify-content: space-between;
     align-items: center;
     height: 66px;
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 40px;
-    gap: 16px;
+    position: relative; /* Giữ menu giữa chuẩn vị trí */
 }
 .nav-logo {
     display: flex;
@@ -62,14 +62,12 @@ a { text-decoration: none; color: inherit; }
     gap: 10px;
     text-decoration: none;
     flex-shrink: 0;
-    min-width: 0;
 }
 .nav-logo-ico {
     display: block;
     width: clamp(140px, 18vw, 205px);
     max-width: 100%;
     height: auto;
-    flex-shrink: 1;
     transition: transform .2s;
 }
 .nav-logo:hover .nav-logo-ico { transform: scale(1.07); }
@@ -77,7 +75,9 @@ a { text-decoration: none; color: inherit; }
     display: flex;
     align-items: center;
     gap: 2px;
-    justify-content: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%); /* Căn giữa hoàn hảo, không đẩy 2 cột bên */
 }
 .nav-link-item {
     font-size: .84rem;
@@ -93,9 +93,7 @@ a { text-decoration: none; color: inherit; }
     display: flex;
     align-items: center;
     gap: 8px;
-    justify-content: flex-end;
     flex-shrink: 0;
-    min-width: 0;
 }
 .btn-signin {
     color: #1447c0;
@@ -790,7 +788,8 @@ a { text-decoration: none; color: inherit; }
 }
 .foot-top-grid {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+    /* Phân bổ lại tỷ lệ đẹp hơn, tránh bị ép dẹp dí lúc thu hẹp */
+    grid-template-columns: 2fr 1fr 1fr 1.5fr;
     gap: clamp(24px, 4vw, 48px);
     padding-bottom: 48px;
     border-bottom: 1px solid rgba(255,255,255,.07);
@@ -907,6 +906,13 @@ a { text-decoration: none; color: inherit; }
 .foot-legal-links a:hover { color: rgba(255,255,255,.58); }
 
 /* ─── RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 1100px) {
+    .pub-nav-in {
+        padding: 10px clamp(18px, 3vw, 40px);
+    }
+    .nav-links-center { display: none; /* Ẩn menu giữa ở iPad để logo và nút có không gian */ }
+    .foot-top-grid { grid-template-columns: repeat(2, 1fr); gap: 40px; }
+}
 @media (max-width: 1024px) {
     .hero-grid { grid-template-columns: 1fr; gap: 36px; }
     .glass-card { display: none; }
@@ -915,38 +921,29 @@ a { text-decoration: none; color: inherit; }
     .stats-bar-grid { grid-template-columns: 1fr 1fr; }
     .how-grid::before { display: none; }
 }
-@media (max-width: 1100px) {
-    .pub-nav-in {
-        grid-template-columns: minmax(0, 1fr) auto;
-        height: auto;
-        min-height: 66px;
-        padding: 10px clamp(18px, 3vw, 40px);
-        gap: 12px;
-    }
-    .nav-links-center { display: none; }
-    .foot-top-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 860px) {
+    /* Đập Footer Stats xuống 2 dòng sớm hơn để "365.1M VND" không bị méo/bị tràn */
+    .foot-stats-row { grid-template-columns: repeat(2, 1fr); row-gap: 20px; border-bottom: none; }
+    .fstat-item:nth-child(2) { border-right: none; }
 }
 @media (max-width: 640px) {
     .camps-grid, .feat-grid, .how-grid { grid-template-columns: 1fr; }
     .hero-title { font-size: 2.1rem; }
     .w { padding: 0 18px; }
-    .pub-nav-in { padding: 9px 18px; gap: 8px; }
+    .pub-nav-in { padding: 9px 18px; }
     .nav-logo-ico { width: clamp(96px, 34vw, 150px); }
     .nav-actions { gap: 5px; }
     .btn-signin { padding: 7px 8px; font-size: .7rem; }
     .btn-donate-nav { padding: 7px 8px; font-size: .68rem; gap: 4px; }
     .pub-footer { padding-top: 40px; }
-    .foot-top-grid { grid-template-columns: minmax(0, 1fr); gap: 26px; padding-bottom: 30px; }
+    .foot-top-grid { grid-template-columns: 1fr; gap: 26px; padding-bottom: 30px; }
     .foot-logo-ico { width: clamp(140px, 55vw, 205px); }
     .foot-about { max-width: 100%; }
-    .foot-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
-    .fstat-item:nth-child(2) { border-right: none; }
+    .foot-stats-row { grid-template-columns: repeat(2, 1fr); row-gap: 14px; }
     .fstat-val { font-size: 1.1rem; }
     .foot-bottom-row { align-items: flex-start; flex-direction: column; }
     .foot-copy { line-height: 1.6; }
     .foot-legal-links { flex-wrap: wrap; gap: 8px 14px; }
-    .stats-bar-grid { grid-template-columns: 1fr 1fr; }
-    .how-grid::before { display: none; }
 }
 </style>
 </head>
