@@ -60,14 +60,14 @@ function getSePayCheckoutUrl(array $config): string
 function signSePayCheckoutFields(array $fields, string $secretKey): string
 {
     $signedFields = [
-        'order_amount',
         'merchant',
         'currency',
+        'order_amount',
         'operation',
         'order_description',
+        'payment_method',
         'order_invoice_number',
         'customer_id',
-        'payment_method',
         'success_url',
         'error_url',
         'cancel_url',

@@ -122,13 +122,13 @@ try {
 
     $invoiceNumber = 'VCFD-' . $donationId;
     $checkoutFields = [
-        'order_amount' => (string) $amount,
         'merchant' => $sepayConfig['merchant_id'],
         'currency' => 'VND',
+        'order_amount' => (string) $amount,
         'operation' => 'PURCHASE',
         'order_description' => 'Donation ' . $donationId,
-        'order_invoice_number' => $invoiceNumber,
         'payment_method' => 'BANK_TRANSFER',
+        'order_invoice_number' => $invoiceNumber,
         'customer_id' => (string) $donorId,
         'success_url' => SITE_URL . '/donor/sepay_return.php?result=success&id=' . $donationId,
         'error_url' => SITE_URL . '/donor/sepay_return.php?result=error&id=' . $donationId,

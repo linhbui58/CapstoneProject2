@@ -104,8 +104,8 @@ Create `config/sepay.php` on the server with the credentials for the selected Pa
 ```php
 <?php
 return [
-    'merchant_id' => 'SP-TEST-your_sandbox_merchant_id',
-    'merchant_secret_key' => 'your_sandbox_merchant_secret',
+    'merchant_id' => 'SP-TEST-ABC123',
+    'merchant_secret_key' => 'replace_with_your_sandbox_merchant_secret',
     'mode' => 'sandbox',
     'ipn_secret_key' => 'the_secret_configured_for_payment_gateway_ipn',
 ];
