@@ -100,7 +100,7 @@ $msg_count   = $messages    ? $messages->num_rows    : 0;
 <!-- ── Hero image ───────────────────────────── -->
 <div style="position:relative;height:320px;border-radius:20px;overflow:hidden;margin-bottom:22px;box-shadow:0 8px 32px rgba(0,0,0,.15);">
     <?php if (!empty($campaign['image_url'])): ?>
-    <img src="<?= htmlspecialchars($campaign['image_url']) ?>" alt=""
+    <img src="<?= htmlspecialchars(campaignImageUrl($campaign['image_url']), ENT_QUOTES, 'UTF-8') ?>" alt=""
          style="width:100%;height:100%;object-fit:cover;display:block;"
          onerror="this.style.display='none'">
     <?php endif; ?>

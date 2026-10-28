@@ -185,7 +185,7 @@ $camps_supported  = (int)$overall['campaigns_supported'];
             <!-- Image -->
             <div style="position:relative;overflow:hidden;background:linear-gradient(135deg,#1e3a8a,#3b82f6);">
                 <?php if($c['image_url']): ?>
-                <img src="<?= htmlspecialchars($c['image_url']) ?>"
+                <img src="<?= htmlspecialchars(campaignImageUrl($c['image_url']), ENT_QUOTES, 'UTF-8') ?>"
                      style="width:100%;height:100%;object-fit:cover;display:block;"
                      onerror="this.style.display='none'">
                 <?php else: ?>

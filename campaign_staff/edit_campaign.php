@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!is_dir($upload_dir) && !mkdir($upload_dir, 0755, true) && !is_dir($upload_dir)) {
                     $errors[] = 'Failed to prepare the image upload directory.';
                 } elseif (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
-                    $image_url = SITE_URL . '/assets/images/campaigns/' . $filename;
+                    $image_url = '/assets/images/campaigns/' . $filename;
                 } else {
                     $errors[] = 'Failed to upload image.';
                 }
@@ -145,7 +145,7 @@ $current_img = $campaign['image_url'] ?? '';
                 <div id="currentImgWrap" style="margin-bottom:12px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
                     <div style="font-size:.73rem;font-weight:600;color:#374151;margin-bottom:7px;">Current image:</div>
                     <div style="position:relative;display:inline-block;">
-                        <img src="<?= htmlspecialchars($current_img) ?>"
+                        <img src="<?= htmlspecialchars(campaignImageUrl($current_img), ENT_QUOTES, 'UTF-8') ?>"
                              style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;display:block;"
                              onerror="this.parentElement.innerHTML='<div style=\'padding:12px;color:#94a3b8;font-size:.78rem;\'>Image not available</div>'">
                     </div>
@@ -182,7 +182,7 @@ $current_img = $campaign['image_url'] ?? '';
                         <input type="url" name="image_url" id="imageUrlInput"
                                style="flex:1;border:none;outline:none;padding:9px 12px;font-size:.82rem;color:#0f172a;background:white;"
                                placeholder="https://example.com/image.jpg"
-                               value="<?= htmlspecialchars($current_img) ?>"
+                               value="<?= htmlspecialchars(campaignImageUrl($current_img), ENT_QUOTES, 'UTF-8') ?>"
                                oninput="previewUrl(this.value)">
                         <button type="button" onclick="document.getElementById('imageUrlInput').value='';clearNewPreview()"
                                 style="padding:9px 12px;border:none;background:white;color:#94a3b8;cursor:pointer;border-left:1px solid #e2e8f0;">

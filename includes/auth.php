@@ -28,6 +28,20 @@ function getApplicationDB(): mysqli
     return $db;
 }
 
+function campaignImageUrl($imageUrl): string
+{
+    $imageUrl = trim((string) $imageUrl);
+    if ($imageUrl === '') {
+        return '';
+    }
+
+    if (preg_match('~^(?:https?:)?//~i', $imageUrl)) {
+        return $imageUrl;
+    }
+
+    return rtrim(SITE_URL, '/') . '/' . ltrim($imageUrl, '/');
+}
+
 // ----------------------
 // Redirect helper
 // ----------------------

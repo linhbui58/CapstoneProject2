@@ -99,7 +99,7 @@ $alloc_styles = [
     <!-- Image -->
     <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05);">
         <?php if($campaign['image_url']): ?>
-        <img src="<?= htmlspecialchars($campaign['image_url']) ?>"
+        <img src="<?= htmlspecialchars(campaignImageUrl($campaign['image_url']), ENT_QUOTES, 'UTF-8') ?>"
              alt="<?= htmlspecialchars($campaign['title']) ?>"
              style="width:100%;height:200px;object-fit:cover;display:block;"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">

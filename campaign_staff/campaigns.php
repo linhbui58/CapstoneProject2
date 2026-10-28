@@ -91,7 +91,7 @@ $status_styles = array(
         <!-- Campaign image -->
         <div style="height:150px;position:relative;overflow:hidden;background:#dbeafe;flex-shrink:0;">
             <?php if($c['image_url']): ?>
-            <img src="<?= htmlspecialchars($c['image_url']) ?>"
+            <img src="<?= htmlspecialchars(campaignImageUrl($c['image_url']), ENT_QUOTES, 'UTF-8') ?>"
                  alt="<?= htmlspecialchars($c['title']) ?>"
                  style="width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s;"
                  onerror="this.style.display='none'"

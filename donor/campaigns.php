@@ -32,7 +32,7 @@ $campaigns = $db->query("
                 <div class="campaign-card h-100 d-flex flex-column">
                     <div class="campaign-img">
                         <?php if (!empty($c['image_url'])): ?>
-                        <img src="<?= htmlspecialchars($c['image_url']) ?>"
+                        <img src="<?= htmlspecialchars(campaignImageUrl($c['image_url']), ENT_QUOTES, 'UTF-8') ?>"
                              alt="<?= htmlspecialchars($c['title']) ?>"
                              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
                         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;">

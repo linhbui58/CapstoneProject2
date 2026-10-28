@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $filename = 'camp_'.time().'_'.uniqid().'.'.$ext;
             $dest = dirname(__DIR__).'/assets/images/campaigns/'.$filename;
             if (move_uploaded_file($file['tmp_name'], $dest)) {
-                $image_url = SITE_URL.'/assets/images/campaigns/'.$filename;
+                $image_url = '/assets/images/campaigns/'.$filename;
             } else { $errors[] = 'Failed to upload image.'; }
         }
     }
