@@ -161,12 +161,8 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         <code id="qrTransferInfo" style="font-size:.9rem;font-weight:700;color:#1447c0;"></code>
         <p id="qrAmount" style="font-size:.9rem;font-weight:700;color:#15803d;margin:8px 0 0;"></p>
         <div id="donationStatus" role="status" aria-live="polite" style="margin-top:16px;padding:12px;border-radius:9px;background:#fffbeb;color:#92400e;font-size:.82rem;">
-            Đang chờ bạn chuyển khoản. Sau khi chuyển xong, hãy bấm nút bên dưới để báo nhân viên tài chính kiểm tra.
+            Đang chờ giao dịch chuyển khoản vào tài khoản quỹ.
         </div>
-        <button type="button" id="confirmTransferButton"
-                style="margin-top:12px;padding:10px 18px;background:#15803d;color:white;border:0;border-radius:8px;font-weight:700;cursor:pointer;">
-            <i class="bi bi-check-circle me-1"></i> Tôi đã chuyển khoản
-        </button>
         <a id="donationDetailsLink" href="#" style="display:none;margin-top:12px;" class="btn btn-outline-primary btn-sm">
             Xem chi tiết quyên góp
         </a>
@@ -605,7 +601,7 @@ donationForm.addEventListener('submit', async function (event) {
         const donationStatus = document.getElementById('donationStatus');
         const donationDetailsLink = document.getElementById('donationDetailsLink');
         const donationDetailsUrl = <?= json_encode(SITE_URL . '/donor/donation_detail.php?id=') ?> + encodeURIComponent(result.donation_id);
-        let statusPolling = false;
+        let statusPolling = true;
 
         donationDetailsLink.href = donationDetailsUrl;
         async function checkDonationStatus() {
@@ -633,8 +629,14 @@ donationForm.addEventListener('submit', async function (event) {
                     donationStatus.style.background = '#fee2e2';
                     donationStatus.style.color = '#991b1b';
                     donationDetailsLink.style.display = 'inline-block';
+                } else if (statusResult.verification_status === 'pending_verification') {
+                    donationStatus.textContent = 'Đã nhận được tiền chuyển khoản. Vui lòng chờ nhân viên tài chính xác nhận giao dịch.';
+                    donationStatus.style.background = '#dbeafe';
+                    donationStatus.style.color = '#1e40af';
+                    donationDetailsLink.style.display = 'inline-block';
+                    window.setTimeout(checkDonationStatus, 5000);
                 } else {
-                    donationStatus.textContent = 'Đang chờ nhân viên tài chính xác nhận. Trang sẽ tự cập nhật khi giao dịch được xử lý.';
+                    donationStatus.textContent = 'Đang chờ giao dịch chuyển khoản vào tài khoản quỹ. Hệ thống sẽ tự cập nhật khi nhận được tiền.';
                     window.setTimeout(checkDonationStatus, 5000);
                 }
             } catch (error) {
@@ -645,36 +647,7 @@ donationForm.addEventListener('submit', async function (event) {
 
         document.getElementById('qrPanel').style.display = 'block';
         document.getElementById('qrPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const confirmTransferButton = document.getElementById('confirmTransferButton');
-        confirmTransferButton.onclick = async function () {
-            if (!window.confirm('Xác nhận bạn đã chuyển khoản thành công? Giao dịch sẽ được gửi cho nhân viên tài chính kiểm tra.')) return;
-
-            confirmTransferButton.disabled = true;
-            confirmTransferButton.textContent = 'Đang gửi xác nhận...';
-            try {
-                const transferResponse = await fetch(<?= json_encode(SITE_URL . '/donor/submit_bank_transfer.php') ?>, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({
-                        donation_id: result.donation_id,
-                        csrf_token: formData.get('csrf_token')
-                    })
-                });
-                const transferResult = await transferResponse.json();
-                if (!transferResponse.ok) throw new Error(transferResult.error || 'Không thể gửi xác nhận chuyển khoản.');
-
-                confirmTransferButton.style.display = 'none';
-                donationStatus.textContent = 'Bạn đã báo chuyển khoản thành công. Giao dịch đang chờ nhân viên tài chính xác nhận.';
-                statusPolling = true;
-                checkDonationStatus();
-            } catch (error) {
-                donationStatus.textContent = error.message;
-                donationStatus.style.background = '#fee2e2';
-                donationStatus.style.color = '#991b1b';
-                confirmTransferButton.disabled = false;
-                confirmTransferButton.innerHTML = '<i class="bi bi-check-circle me-1"></i> Tôi đã chuyển khoản';
-            }
-        };
+        checkDonationStatus();
     } catch (error) {
         alert(error.message);
     } finally {

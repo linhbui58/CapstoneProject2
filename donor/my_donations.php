@@ -177,11 +177,13 @@ $freq_cfg = [
                                 <?= $freq !== 'one_time' ? '🔄' : '' ?>
                             </span>
                         </td>
-                        <td><code class="small"><?= htmlspecialchars($d['reference_code'] ?? 'N/A') ?></code></td>
+                        <td><code class="small"><?= htmlspecialchars($d['reference_code'] ?? '—') ?></code></td>
                         <td>
                             <span class="status-pill <?= $d['status'] ?>">
                                 <i class="bi bi-<?= $d['status']==='verified'?'check-circle-fill':($d['status']==='rejected'?'x-circle-fill':'clock-fill') ?>"></i>
-                                <?= ucfirst($d['verification_status'] ?? $d['status']) ?>
+                                <?= empty($d['transaction_id']) && $d['status'] === 'pending'
+                                    ? 'Awaiting transfer'
+                                    : ucfirst(str_replace('_', ' ', $d['verification_status'] ?? $d['status'])) ?>
                             </span>
                             <?php if ($d['status'] === 'rejected' && $d['rejection_reason']): ?>
                                 <div class="small text-danger mt-1">

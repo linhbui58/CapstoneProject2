@@ -97,6 +97,19 @@ return [
 
 The same `VIETQR_BANK_ID`, `VIETQR_BANK_NAME`, `VIETQR_ACCOUNT_NO`, and `VIETQR_ACCOUNT_NAME` PHP environment variables or constants are also supported; environment variables take precedence. Do not commit database credentials or the fund account configuration to the repository.
 
+Bank transfers use VietQR to generate the donor's QR code. To automatically detect funds received and notify the donor, connect the receiving bank account to SePay Webhooks. Import `database/migrations/20261028_sepay_webhook.sql` into an existing database; new installations get the required SePay transaction ID column from `database/full_setup.sql`.
+
+Create `config/sepay.php` on the server and add the API key configured for the SePay webhook:
+
+```php
+<?php
+return [
+    'api_key' => 'your_sepay_webhook_api_key',
+];
+```
+
+In SePay, create a webhook for incoming transfers, set its URL to `https://your-site/donor/sepay_webhook.php`, choose API Key authentication, and use the same key. Configure it for the VietQR receiving account and, if desired, filter transfer content with the `DONATE` prefix. The webhook matches the QR's `DONATE {donation_id} {donor_id}` transfer content. On a match, the donor is notified that the money has arrived and is waiting for finance staff verification; the donation is not marked verified automatically. Do not commit the SePay API key.
+
 Credit card donations are processed by VNPay in VND. Create `config/vnpay.php` on the server with the merchant credentials provided by VNPay:
 
 ```php
@@ -124,7 +137,7 @@ For Gmail, use a Google App Password with 2-Step Verification enabled, not the a
 
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
-For an existing installation, import `database/migrations/20261026_disbursement_requests.sql` and `database/migrations/20261027_campaign_updates.sql` into the application's selected database using phpMyAdmin. These add the disbursement request and campaign update tables and the evidence columns required by completed disbursements. New installations get this schema from `database/full_setup.sql`.
+For an existing installation, import `database/migrations/20261026_disbursement_requests.sql`, `database/migrations/20261027_campaign_updates.sql`, and `database/migrations/20261028_sepay_webhook.sql` into the application's selected database using phpMyAdmin. These add the disbursement request and campaign update tables, evidence columns for completed disbursements, and SePay webhook deduplication. New installations get this schema from `database/full_setup.sql`.
 
 ### Step 5: Run the Application
 

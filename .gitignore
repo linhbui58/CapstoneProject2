@@ -1,6 +1,7 @@
 # Sensitive config
 config/db.php
 config/vietqr.php
+config/sepay.php
 config/vnpay.php
 config/paypal.php
 config/mailer.php

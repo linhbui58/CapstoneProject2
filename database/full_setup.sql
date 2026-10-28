@@ -102,12 +102,14 @@ CREATE TABLE IF NOT EXISTS transactions (
     account_number VARCHAR(50),
     transaction_date DATETIME,
     amount_transferred DECIMAL(15,2),
+    sepay_transaction_id BIGINT UNSIGNED NULL,
     verification_status ENUM('pending_verification', 'verified', 'rejected') DEFAULT 'pending_verification',
     rejection_reason TEXT,
     verified_by INT,
     verified_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_transactions_sepay_id (sepay_transaction_id),
     FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE,
     FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL
 );

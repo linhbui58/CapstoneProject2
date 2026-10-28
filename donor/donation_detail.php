@@ -125,10 +125,16 @@ if (!empty($donation['txn_id'])) {
                     <dt class="col-sm-4 text-muted">Verification</dt>
                     <dd class="col-sm-8">
                         <span class="status-pill <?= str_replace('_verification','',$donation['verification_status'] ?? 'pending') ?>">
-                            <?= empty($donation['txn_id']) ? 'Awaiting transfer' : ucfirst(str_replace('_', ' ', $donation['verification_status'] ?? 'pending')) ?>
+                            <?= empty($donation['txn_id'])
+                                ? 'Awaiting transfer'
+                                : (($donation['verification_status'] ?? '') === 'pending_verification'
+                                    ? 'Transfer received · Awaiting finance'
+                                    : ucfirst(str_replace('_', ' ', $donation['verification_status'] ?? 'pending'))) ?>
                         </span>
                         <?php if (empty($donation['txn_id'])): ?>
-                        <div class="small text-muted mt-1">This donation will be sent to finance staff after you complete the bank transfer and confirm it.</div>
+                        <div class="small text-muted mt-1">Waiting for the bank to report the incoming transfer. Finance staff will verify it after it arrives.</div>
+                        <?php elseif (($donation['verification_status'] ?? '') === 'pending_verification'): ?>
+                        <div class="small text-primary mt-1">Transfer received. Please wait for finance staff to verify it.</div>
                         <?php endif; ?>
                     </dd>
 
