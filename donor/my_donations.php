@@ -191,12 +191,10 @@ $freq_cfg = [
                         </td>
                         <td class="text-muted small"><?= formatDate($d['created_at']) ?></td>
                         <td>
-                            <?php if ($d['transaction_id']): ?>
-                                <a href="<?= SITE_URL ?>/donor/donation_detail.php?id=<?= $d['id'] ?>"
-                                   class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                            <?php endif; ?>
+                            <a href="<?= SITE_URL ?>/donor/donation_detail.php?id=<?= $d['id'] ?>"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
                         </td>
                     </tr>
                     <?php endwhile; ?>

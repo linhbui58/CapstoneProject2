@@ -28,13 +28,16 @@ if (!$donation) {
 }
 
 // Verification history
-$history = $db->query("
-    SELECT vh.*, u.name as staff_name
-    FROM verification_history vh
-    JOIN users u ON vh.performed_by = u.id
-    WHERE vh.transaction_id = {$donation['txn_id']}
-    ORDER BY vh.created_at ASC
-");
+$history = null;
+if (!empty($donation['txn_id'])) {
+    $history = $db->query("
+        SELECT vh.*, u.name as staff_name
+        FROM verification_history vh
+        JOIN users u ON vh.performed_by = u.id
+        WHERE vh.transaction_id = " . (int) $donation['txn_id'] . "
+        ORDER BY vh.created_at ASC
+    ");
+}
 ?>
 
 <div class="page-header d-flex justify-content-between align-items-center">
@@ -122,8 +125,11 @@ $history = $db->query("
                     <dt class="col-sm-4 text-muted">Verification</dt>
                     <dd class="col-sm-8">
                         <span class="status-pill <?= str_replace('_verification','',$donation['verification_status'] ?? 'pending') ?>">
-                            <?= ucfirst(str_replace('_', ' ', $donation['verification_status'] ?? 'pending')) ?>
+                            <?= empty($donation['txn_id']) ? 'Awaiting transfer' : ucfirst(str_replace('_', ' ', $donation['verification_status'] ?? 'pending')) ?>
                         </span>
+                        <?php if (empty($donation['txn_id'])): ?>
+                        <div class="small text-muted mt-1">This donation will be sent to finance staff after you complete the bank transfer and confirm it.</div>
+                        <?php endif; ?>
                     </dd>
 
                     <?php if ($donation['rejection_reason']): ?>

@@ -116,8 +116,6 @@ try {
         }
     }
 
-    $transferInfo = sprintf('DONATE %d %d', $campaignId, $donorId);
-
     $failureStage = 'starting the donation transaction';
     if (!$db->begin_transaction()) {
         throw new RuntimeException('Unable to start database transaction: ' . $db->error);
@@ -145,42 +143,13 @@ try {
     $donationInsert->close();
     $donationId = (int) $db->insert_id;
 
-    $failureStage = 'saving the bank transaction';
-    $transactionInsert = $db->prepare(
-        "INSERT INTO transactions
-            (donation_id, reference_code, bank_name, account_number, amount_transferred, verification_status)
-         VALUES (?, ?, ?, ?, NULL, 'pending_verification')"
-    );
-    if (!$transactionInsert) {
-        throw new RuntimeException('Unable to prepare transaction insert: ' . $db->error);
-    }
-    if (!$transactionInsert->bind_param('isss', $donationId, $transferInfo, $bankName, $accountNumber)
-        || !$transactionInsert->execute()) {
-        throw new RuntimeException('Unable to save bank transaction: ' . $transactionInsert->error);
-    }
-    $transactionInsert->close();
-    $transactionId = (int) $db->insert_id;
-
-    $failureStage = 'saving the verification history';
-    $historyInsert = $db->prepare(
-        "INSERT INTO verification_history (transaction_id, action, performed_by, old_status, new_status, notes)
-         VALUES (?, 'submitted', ?, NULL, 'pending_verification', ?)"
-    );
-    if (!$historyInsert) {
-        throw new RuntimeException('Unable to prepare verification history insert: ' . $db->error);
-    }
-    $historyNotes = 'Donation submitted through VietQR.' . ($frequency !== 'one_time' ? ' Frequency: ' . $frequency . '.' : '');
-    if (!$historyInsert->bind_param('iis', $transactionId, $donorId, $historyNotes)
-        || !$historyInsert->execute()) {
-        throw new RuntimeException('Unable to save verification history: ' . $historyInsert->error);
-    }
-    $historyInsert->close();
     $failureStage = 'committing the donation transaction';
     if (!$db->commit()) {
         throw new RuntimeException('Unable to commit donation transaction: ' . $db->error);
     }
     $transactionStarted = false;
 
+    $transferInfo = sprintf('DONATE %d %d', $donationId, $donorId);
     $qrPath = sprintf(
         'https://img.vietqr.io/image/%s-%s-qr_only.png',
         rawurlencode($bankId),

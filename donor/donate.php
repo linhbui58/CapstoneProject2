@@ -39,7 +39,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             </span>
             Make a Donation
         </h1>
-        <p style="color:#64748b;font-size:.8rem;margin:4px 0 0 46px;">Fill in the form below to submit your donation for verification</p>
+        <p style="color:#64748b;font-size:.8rem;margin:4px 0 0 46px;">Transfer first, then confirm the payment to send it for verification</p>
     </div>
     <a href="<?= SITE_URL ?>/donor/campaigns.php"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:9px;color:#64748b;font-size:.81rem;font-weight:600;background:white;text-decoration:none;transition:all .15s;"
@@ -161,8 +161,12 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         <code id="qrTransferInfo" style="font-size:.9rem;font-weight:700;color:#1447c0;"></code>
         <p id="qrAmount" style="font-size:.9rem;font-weight:700;color:#15803d;margin:8px 0 0;"></p>
         <div id="donationStatus" role="status" aria-live="polite" style="margin-top:16px;padding:12px;border-radius:9px;background:#fffbeb;color:#92400e;font-size:.82rem;">
-            Đang chờ bạn chuyển khoản. Sau khi chuyển, nhân viên tài chính sẽ kiểm tra và xác nhận giao dịch.
+            Đang chờ bạn chuyển khoản. Sau khi chuyển xong, hãy bấm nút bên dưới để báo nhân viên tài chính kiểm tra.
         </div>
+        <button type="button" id="confirmTransferButton"
+                style="margin-top:12px;padding:10px 18px;background:#15803d;color:white;border:0;border-radius:8px;font-weight:700;cursor:pointer;">
+            <i class="bi bi-check-circle me-1"></i> Tôi đã chuyển khoản
+        </button>
         <a id="donationDetailsLink" href="#" style="display:none;margin-top:12px;" class="btn btn-outline-primary btn-sm">
             Xem chi tiết quyên góp
         </a>
@@ -346,8 +350,8 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
             <i class="bi bi-info-circle-fill"></i>What happens next?
         </div>
         <?php foreach([
-            ['bi-send-fill',          '#dbeafe','#1447c0', 'You submit donation details'],
-            ['bi-shield-check-fill',  '#ede9fe','#7c3aed', 'Finance Staff reviews & verifies'],
+            ['bi-send-fill',          '#dbeafe','#1447c0', 'You create a donation and receive a QR code'],
+            ['bi-shield-check-fill',  '#ede9fe','#7c3aed', 'After your confirmation, Finance Staff reviews the transfer'],
             ['bi-bell-fill',          '#dcfce7','#16a34a', 'You receive confirmation notification'],
             ['bi-graph-up-arrow',     '#fff7ed','#c2410c', 'Campaign progress updates automatically'],
         ] as [$ic,$bg,$color,$txt]): ?>
@@ -384,7 +388,7 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         </div>
         <div style="display:flex;justify-content:space-between;font-size:.76rem;">
             <span style="color:#64748b;">Status after submit</span>
-            <span id="summStatus" style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">Pending Verification</span>
+            <span id="summStatus" style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;">Awaiting Transfer</span>
         </div>
     </div>
 
@@ -458,7 +462,7 @@ function setPaymentMethodUI() {
         ? 'Scan the QR and transfer to the fund account'
         : 'VNPay securely processes your card payment in VND.';
     document.getElementById('summStatus').textContent = method === 'bank_transfer'
-        ? 'Pending Verification'
+        ? 'Awaiting Transfer'
         : 'Verified after VNPay confirms card payment.';
 }
 
@@ -601,7 +605,7 @@ donationForm.addEventListener('submit', async function (event) {
         const donationStatus = document.getElementById('donationStatus');
         const donationDetailsLink = document.getElementById('donationDetailsLink');
         const donationDetailsUrl = <?= json_encode(SITE_URL . '/donor/donation_detail.php?id=') ?> + encodeURIComponent(result.donation_id);
-        let statusPolling = true;
+        let statusPolling = false;
 
         donationDetailsLink.href = donationDetailsUrl;
         async function checkDonationStatus() {
@@ -641,7 +645,36 @@ donationForm.addEventListener('submit', async function (event) {
 
         document.getElementById('qrPanel').style.display = 'block';
         document.getElementById('qrPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        checkDonationStatus();
+        const confirmTransferButton = document.getElementById('confirmTransferButton');
+        confirmTransferButton.onclick = async function () {
+            if (!window.confirm('Xác nhận bạn đã chuyển khoản thành công? Giao dịch sẽ được gửi cho nhân viên tài chính kiểm tra.')) return;
+
+            confirmTransferButton.disabled = true;
+            confirmTransferButton.textContent = 'Đang gửi xác nhận...';
+            try {
+                const transferResponse = await fetch(<?= json_encode(SITE_URL . '/donor/submit_bank_transfer.php') ?>, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        donation_id: result.donation_id,
+                        csrf_token: formData.get('csrf_token')
+                    })
+                });
+                const transferResult = await transferResponse.json();
+                if (!transferResponse.ok) throw new Error(transferResult.error || 'Không thể gửi xác nhận chuyển khoản.');
+
+                confirmTransferButton.style.display = 'none';
+                donationStatus.textContent = 'Bạn đã báo chuyển khoản thành công. Giao dịch đang chờ nhân viên tài chính xác nhận.';
+                statusPolling = true;
+                checkDonationStatus();
+            } catch (error) {
+                donationStatus.textContent = error.message;
+                donationStatus.style.background = '#fee2e2';
+                donationStatus.style.color = '#991b1b';
+                confirmTransferButton.disabled = false;
+                confirmTransferButton.innerHTML = '<i class="bi bi-check-circle me-1"></i> Tôi đã chuyển khoản';
+            }
+        };
     } catch (error) {
         alert(error.message);
     } finally {

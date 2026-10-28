@@ -28,7 +28,7 @@ try {
     $query = $db->prepare(
         'SELECT d.status, t.verification_status, t.rejection_reason
          FROM donations d
-         JOIN transactions t ON t.donation_id = d.id
+         LEFT JOIN transactions t ON t.donation_id = d.id
          WHERE d.id = ? AND d.donor_id = ?
          LIMIT 1'
     );
@@ -48,7 +48,7 @@ try {
 
     respond(200, [
         'status' => $status,
-        'verification_status' => $verificationStatus,
+        'verification_status' => $verificationStatus ?? 'awaiting_transfer',
         'rejection_reason' => $rejectionReason,
     ]);
 } catch (Throwable $exception) {
