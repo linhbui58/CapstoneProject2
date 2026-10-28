@@ -447,7 +447,7 @@ body {
 
     <div class="left-footer">
         <span>© 2026 VinaCapital Foundation</span>
-        <a href="<?= SITE_URL ?>">Back to Home</a>
+        <a href="<?= SITE_URL ?>/index.php">Back to Home</a>
     </div>
 
 </div>
@@ -528,7 +528,7 @@ body {
             New to VCF?
             <a href="<?= SITE_URL ?>/auth/register.php" style="margin-left:4px;">Create account</a>
             <span class="sep">·</span>
-            <a href="<?= SITE_URL ?>" style="color:#9ca3af;font-weight:500;">Home</a>
+            <a href="<?= SITE_URL ?>/index.php" style="color:#9ca3af;font-weight:500;">Home</a>
         </div>
 
     </div>
