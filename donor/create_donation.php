@@ -119,7 +119,7 @@ try {
     }
     $transactionStarted = false;
 
-    $returnUrl = SITE_URL . '/donor/donation_detail.php?id=' . $donationId;
+    $returnUrl = SITE_URL . '/donor/donation_detail.php?donation_id=' . $donationId;
     $failureStage = 'creating the payOS checkout';
     $checkoutUrl = createPayOsPaymentLink(
         $payOsConfig,

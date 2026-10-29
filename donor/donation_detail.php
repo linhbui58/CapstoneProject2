@@ -6,7 +6,7 @@ requireRole('donor');
 
 $db  = getApplicationDB();
 $uid = $user['id'];
-$id  = (int)($_GET['id'] ?? 0);
+$id  = (int)($_GET['donation_id'] ?? $_GET['orderCode'] ?? $_GET['id'] ?? 0);
 
 $donation = $db->query("
     SELECT d.*, c.title as campaign_title, c.target_amount,
