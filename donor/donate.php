@@ -159,15 +159,6 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         </div>
     </div>
 
-    <div id="cardPaymentPanel" style="display:none;background:white;border:1px solid #cbd5e1;border-radius:12px;padding:18px;margin-bottom:16px;">
-        <div style="font-size:.9rem;font-weight:700;color:#0f172a;margin-bottom:5px;">Secure credit card payment</div>
-        <div style="font-size:.76rem;color:#64748b;margin-bottom:13px;">You will be redirected to VNPay to complete payment using an eligible card. This website does not collect card details.</div>
-        <button type="submit" id="cardDonateButton" style="width:100%;padding:13px;background:#1447c0;color:white;border:0;border-radius:9px;font-weight:700;font-size:.9rem;cursor:pointer;">
-            <i class="bi bi-credit-card me-2"></i>Pay by Credit Card
-        </button>
-        <div id="cardPaymentStatus" role="status" aria-live="polite" style="display:none;margin-top:12px;padding:11px;border-radius:8px;font-size:.8rem;"></div>
-    </div>
-
     <!-- Step 2: Transaction Details -->
     <div style="display:none;background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;margin-bottom:16px;">
         <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:14px 20px;border-bottom:1px solid #5b21b6;display:flex;align-items:center;gap:10px;">
@@ -262,10 +253,10 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
         </div>
     </div>
 
-    <!-- Step 3: Additional -->
+    <!-- Step 2: Additional -->
     <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;margin-bottom:20px;">
         <div style="background:linear-gradient(135deg,#16a34a,#15803d);padding:14px 20px;border-bottom:1px solid #166534;display:flex;align-items:center;gap:10px;">
-            <div style="width:26px;height:26px;background:rgba(255,255,255,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:white;flex-shrink:0;">3</div>
+            <div style="width:26px;height:26px;background:rgba(255,255,255,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:white;flex-shrink:0;">2</div>
             <div>
                 <div style="font-size:.84rem;font-weight:700;color:white;">Additional Information</div>
                 <div style="font-size:.71rem;color:rgba(255,255,255,.75);">Optional message and preferences</div>
@@ -324,6 +315,15 @@ $all_campaigns = $db->query("SELECT id, title FROM campaigns WHERE status='activ
                 </div>
             </label>
         </div>
+    </div>
+
+    <div id="cardPaymentPanel" style="display:none;background:white;border:1px solid #cbd5e1;border-radius:12px;padding:18px;margin-bottom:16px;">
+        <div style="font-size:.9rem;font-weight:700;color:#0f172a;margin-bottom:5px;">Secure credit card payment</div>
+        <div style="font-size:.76rem;color:#64748b;margin-bottom:13px;">You will be redirected to VNPay to complete payment using an eligible card. This website does not collect card details.</div>
+        <button type="submit" id="cardDonateButton" style="width:100%;padding:13px;background:#1447c0;color:white;border:0;border-radius:9px;font-weight:700;font-size:.9rem;cursor:pointer;">
+            <i class="bi bi-credit-card me-2"></i>Pay by Credit Card
+        </button>
+        <div id="cardPaymentStatus" role="status" aria-live="polite" style="display:none;margin-top:12px;padding:11px;border-radius:8px;font-size:.8rem;"></div>
     </div>
 
     <!-- Submit -->
