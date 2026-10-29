@@ -19,7 +19,7 @@ $pending_list = $db->query("
     JOIN users u ON d.donor_id=u.id
     LEFT JOIN campaigns c ON d.campaign_id=c.id
     WHERE t.verification_status='pending_verification'
-    ORDER BY t.created_at ASC LIMIT 6
+    ORDER BY t.created_at DESC LIMIT 6
 ");
 
 $recent = $db->query("

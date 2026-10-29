@@ -16,7 +16,7 @@ $pending = $db->query("
     JOIN users u ON d.donor_id = u.id
     LEFT JOIN campaigns c ON d.campaign_id = c.id
     WHERE t.verification_status = 'pending_verification'
-    ORDER BY t.created_at ASC
+    ORDER BY t.created_at DESC
 ");
 $count = $pending ? $pending->num_rows : 0;
 
