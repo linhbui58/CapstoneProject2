@@ -205,6 +205,138 @@ $seg_cfg = [
 </div>
 <?php endif; ?>
 
+<!-- ═══ TARGETED OUTREACH ════════════════════════════ -->
+<div style="background:white;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05);overflow:hidden;margin-bottom:22px;">
+    <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;background:linear-gradient(100deg,#fff,#fafbff);">
+        <span style="width:30px;height:30px;background:#dbeafe;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="bi bi-send-fill" style="color:#1447c0;font-size:.78rem;"></i>
+        </span>
+        <span style="font-size:.86rem;font-weight:700;color:#0f172a;">Targeted Outreach Recommendations</span>
+        <span style="background:#dbeafe;color:#1447c0;padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:700;margin-left:4px;">Advanced Feature</span>
+    </div>
+    <div style="padding:18px 20px;">
+        <p style="font-size:.78rem;color:#64748b;margin-bottom:16px;">Based on donor segments, here are recommended outreach actions to maximize donor retention and re-engagement.</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+            <?php
+            $outreach = [
+                'high_value' => [
+                    'title'   => 'VIP Recognition — High-Value Donors',
+                    'desc'    => 'Send personalized thank-you letters and exclusive campaign impact reports to your top contributors.',
+                    'action'  => 'Send Personalized Thank-You',
+                    'icon'    => 'bi-star-fill',
+                    'bg'      => '#fffbeb',
+                    'border'  => '#fde68a',
+                    'color'   => '#d97706',
+                    'btnbg'   => 'linear-gradient(135deg,#d97706,#b45309)',
+                    'template'=> 'Dear [Name], your generous contribution of [Amount] to [Campaign] has made a tremendous impact. As one of our top supporters, we want to personally thank you and share how your donation is changing lives...',
+                ],
+                'lapsed' => [
+                    'title'   => 'Re-engagement — Lapsed Donors',
+                    'desc'    => 'Reach out to donors who have not donated in over 90 days with a compelling campaign update.',
+                    'action'  => 'Send Re-engagement Email',
+                    'icon'    => 'bi-arrow-repeat',
+                    'bg'      => '#fff1f2',
+                    'border'  => '#fecaca',
+                    'color'   => '#dc2626',
+                    'btnbg'   => 'linear-gradient(135deg,#dc2626,#b91c1c)',
+                    'template'=> 'Dear [Name], we miss you! It\'s been a while since your last donation. Your past support made a real difference — here\'s an update on what we\'ve achieved together, and a new campaign that needs your help...',
+                ],
+                'new' => [
+                    'title'   => 'Welcome Journey — New Donors',
+                    'desc'    => 'Welcome new donors with a campaign spotlight and guide them through their first impact experience.',
+                    'action'  => 'Send Welcome Email',
+                    'icon'    => 'bi-person-plus-fill',
+                    'bg'      => '#eff6ff',
+                    'border'  => '#bfdbfe',
+                    'color'   => '#1447c0',
+                    'btnbg'   => 'linear-gradient(135deg,#1447c0,#0d2157)',
+                    'template'=> 'Dear [Name], welcome to VinaCapital Foundation! Your first donation means the world to us. Here\'s how your contribution is already making a difference, and here are more ways you can help...',
+                ],
+            ];
+            foreach($outreach as $seg_key => $o):
+                $count = $seg_counts[$seg_key] ?? 0;
+            ?>
+            <div style="background:<?= $o['bg'] ?>;border:1.5px solid <?= $o['border'] ?>;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:9px;">
+                    <div style="width:36px;height:36px;background:<?= $o['color'] ?>;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="bi <?= $o['icon'] ?>" style="color:white;font-size:.9rem;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:.79rem;font-weight:700;color:#0f172a;"><?= $o['title'] ?></div>
+                        <div style="font-size:.67rem;color:<?= $o['color'] ?>;font-weight:600;margin-top:1px;"><?= $count ?> donor<?= $count != 1 ? 's' : '' ?> in this segment</div>
+                    </div>
+                </div>
+                <div style="font-size:.74rem;color:#475569;line-height:1.5;"><?= $o['desc'] ?></div>
+
+                <!-- Email template preview -->
+                <div style="background:white;border:1px solid <?= $o['border'] ?>;border-radius:9px;padding:10px 12px;">
+                    <div style="font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:5px;">Email Template Preview</div>
+                    <div style="font-size:.72rem;color:#64748b;line-height:1.5;font-style:italic;">"<?= $o['template'] ?>"</div>
+                </div>
+
+                <?php if($count > 0): ?>
+                <a href="?segment=<?= $seg_key ?>"
+                   style="display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;background:<?= $o['btnbg'] ?>;color:white;border-radius:9px;font-size:.78rem;font-weight:700;text-decoration:none;transition:opacity .15s;box-shadow:0 2px 8px rgba(0,0,0,.15);"
+                   onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+                    <i class="bi bi-people-fill" style="font-size:.76rem;"></i>
+                    View <?= $count ?> <?= $seg_cfg[$seg_key]['label'] ?><?= $count != 1 ? 's' : '' ?>
+                </a>
+                <?php else: ?>
+                <div style="padding:8px 12px;background:white;border-radius:9px;text-align:center;font-size:.74rem;color:#94a3b8;border:1px dashed #e2e8f0;">
+                    No donors in this segment yet
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Repeat & Loyal outreach row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+            <?php
+            $outreach2 = [
+                'repeat' => [
+                    'title'  => 'Engagement — Repeat Donors',
+                    'desc'   => 'Share campaign milestones and fund usage updates to keep repeat donors engaged.',
+                    'icon'   => 'bi-arrow-repeat',
+                    'color'  => '#15803d',
+                    'bg'     => '#f0fdf4',
+                    'border' => '#bbf7d0',
+                ],
+                'loyal' => [
+                    'title'  => 'Loyalty Recognition — Loyal Donors',
+                    'desc'   => 'Acknowledge 5+ donation donors with impact reports and loyalty badges.',
+                    'icon'   => 'bi-heart-fill',
+                    'color'  => '#7c3aed',
+                    'bg'     => '#faf5ff',
+                    'border' => '#ddd6fe',
+                ],
+            ];
+            foreach($outreach2 as $seg_key => $o2):
+                $count = $seg_counts[$seg_key] ?? 0;
+            ?>
+            <div style="background:<?= $o2['bg'] ?>;border:1.5px solid <?= $o2['border'] ?>;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+                <div style="width:34px;height:34px;background:<?= $o2['color'] ?>;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="bi <?= $o2['icon'] ?>" style="color:white;font-size:.88rem;"></i>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:.79rem;font-weight:700;color:#0f172a;"><?= $o2['title'] ?></div>
+                    <div style="font-size:.72rem;color:#64748b;margin-top:2px;"><?= $o2['desc'] ?></div>
+                </div>
+                <?php if($count > 0): ?>
+                <a href="?segment=<?= $seg_key ?>"
+                   style="display:inline-flex;align-items:center;gap:5px;padding:7px 13px;background:<?= $o2['color'] ?>;color:white;border-radius:8px;font-size:.75rem;font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0;"
+                   onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                    View <?= $count ?>
+                </a>
+                <?php else: ?>
+                <span style="font-size:.72rem;color:#94a3b8;white-space:nowrap;">0 donors</span>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ DONOR TABLE ═══════════════════════════════════ -->
 <div style="background:white;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 4px 20px rgba(0,0,0,.06);overflow:hidden;">
 
