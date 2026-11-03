@@ -243,7 +243,7 @@ $seg_cfg = [
         <table style="width:100%;border-collapse:collapse;">
             <thead>
                 <tr style="background:#fef3c7;">
-                    <?php foreach(['Donor','Segment','Total Donated','Donations','Days Since Last','Risk Level','Action']) as $h): ?>
+                    <?php foreach(['Donor','Segment','Total Donated','Donations','Days Since Last','Risk Level','Action'] as $h): ?>
                     <th style="padding:8px 14px;font-size:.61rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#92400e;border-bottom:1px solid #fde68a;text-align:left;white-space:nowrap;"><?= $h ?></th>
                     <?php endforeach; ?>
                 </tr>
