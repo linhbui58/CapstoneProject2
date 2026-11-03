@@ -37,6 +37,54 @@ $status_styles = [
     'draft'     => ['bg'=>'#f1f5f9','color'=>'#475569','border'=>'#e2e8f0','label'=>'Draft'],
     'closed'    => ['bg'=>'#f1f5f9','color'=>'#94a3b8','border'=>'#e2e8f0','label'=>'Closed'],
 ];
+
+// ── Campaign Health Score ──────────────────────────
+function calcHealthScore(array $c, $db): array {
+    $id           = (int)$c['id'];
+    $days_left    = max(0, (int)$c['days_left']);
+    $days_elapsed = max(1, (int)$db->query("SELECT DATEDIFF(CURDATE(),start_date) d FROM campaigns WHERE id=$id")->fetch_assoc()['d']);
+    $total_days   = $days_elapsed + $days_left;
+    $pct          = min(100, (float)($c['pct'] ?? 0));
+    $raised       = (float)$c['raised_amount'];
+    $target       = (float)$c['target_amount'];
+
+    // Already completed or not active
+    if ($c['status'] === 'completed' || $pct >= 100) {
+        return ['score'=>100,'label'=>'Goal Reached','color'=>'#15803d','bg'=>'#dcfce7','border'=>'#bbf7d0','icon'=>'bi-trophy-fill','tip'=>'Campaign has reached its fundraising target.'];
+    }
+    if ($c['status'] !== 'active') {
+        return ['score'=>0,'label'=>'Inactive','color'=>'#94a3b8','bg'=>'#f1f5f9','border'=>'#e2e8f0','icon'=>'bi-pause-circle-fill','tip'=>'Campaign is not active.'];
+    }
+
+    // Score components
+    // 1. Time-adjusted progress (40%): are we raising money fast enough?
+    $expected_pct = $total_days > 0 ? ($days_elapsed / $total_days) * 100 : 0;
+    $progress_ratio = $expected_pct > 0 ? min(1.5, $pct / $expected_pct) : 0;
+    $score_progress = min(40, $progress_ratio * 40);
+
+    // 2. 7-day velocity vs prior 7 days (25%)
+    $recent7  = (float)$db->query("SELECT COALESCE(SUM(amount),0) t FROM donations WHERE campaign_id=$id AND status='verified' AND created_at >= DATE_SUB(NOW(),INTERVAL 7 DAY)")->fetch_assoc()['t'];
+    $prior7   = (float)$db->query("SELECT COALESCE(SUM(amount),0) t FROM donations WHERE campaign_id=$id AND status='verified' AND created_at >= DATE_SUB(NOW(),INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(),INTERVAL 7 DAY)")->fetch_assoc()['t'];
+    $velocity_ratio = $prior7 > 0 ? min(2, $recent7 / $prior7) : ($recent7 > 0 ? 1 : 0);
+    $score_velocity = min(25, $velocity_ratio * 25);
+
+    // 3. Fund utilization (20%): how much of raised has been allocated?
+    $allocated  = (float)($c['total_allocated'] ?? 0);
+    $util_ratio = $raised > 0 ? min(1, $allocated / $raised) : 0;
+    $score_util = $util_ratio * 20;
+
+    // 4. New donors in last 14 days (15%)
+    $new_donors = (int)$db->query("SELECT COUNT(DISTINCT donor_id) c FROM donations WHERE campaign_id=$id AND status='verified' AND created_at >= DATE_SUB(NOW(),INTERVAL 14 DAY)")->fetch_assoc()['c'];
+    $score_donors = min(15, $new_donors * 3);
+
+    $total = (int)round($score_progress + $score_velocity + $score_util + $score_donors);
+    $total = max(0, min(100, $total));
+
+    if ($total >= 75)      return ['score'=>$total,'label'=>'Excellent','color'=>'#15803d','bg'=>'#dcfce7','border'=>'#bbf7d0','icon'=>'bi-graph-up-arrow','tip'=>"Raising well ahead of pace. Keep momentum!"];
+    elseif ($total >= 50)  return ['score'=>$total,'label'=>'Healthy','color'=>'#1447c0','bg'=>'#dbeafe','border'=>'#bfdbfe','icon'=>'bi-check-circle-fill','tip'=>"On track. Monitor velocity over next 7 days."];
+    elseif ($total >= 30)  return ['score'=>$total,'label'=>'At Risk','color'=>'#d97706','bg'=>'#fef9c3','border'=>'#fde68a','icon'=>'bi-exclamation-triangle-fill','tip'=>"Falling behind pace. Consider a donor outreach push."];
+    else                   return ['score'=>$total,'label'=>'Critical','color'=>'#dc2626','bg'=>'#fee2e2','border'=>'#fecaca','icon'=>'bi-exclamation-circle-fill','tip'=>"Significantly behind target. Urgent action needed."];
+}
 ?>
 
 <!-- Header -->
@@ -101,7 +149,7 @@ $status_styles = [
         <table style="width:100%;border-collapse:collapse;">
             <thead>
                 <tr style="background:#f8fafc;">
-                    <?php foreach(['Title','Target','Raised','Progress','Donations','Allocated','Deadline','Status','Created By',''] as $h): ?>
+                    <?php foreach(['Title','Target','Raised','Progress','Donations','Allocated','Deadline','Status','Health','Created By',''] as $h): ?>
                     <th style="padding:10px 16px;text-align:left;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;border-bottom:1px solid #f1f5f9;white-space:nowrap;"><?= $h ?></th>
                     <?php endforeach; ?>
                 </tr>
@@ -113,6 +161,7 @@ $status_styles = [
                 $ss      = $status_styles[$c['status']] ?? $status_styles['draft'];
                 $urgent  = $c['days_left'] > 0 && $c['days_left'] <= 14;
                 $ended   = $c['days_left'] <= 0;
+                $hs      = calcHealthScore($c, $db);
             ?>
             <tr style="border-bottom:1px solid #f9fafb;transition:background .12s;"
                 onmouseover="this.style.background='#fafbff'" onmouseout="this.style.background='white'">
@@ -192,6 +241,21 @@ $status_styles = [
                     </span>
                 </td>
 
+                <!-- Health Score -->
+                <td style="padding:13px 16px;min-width:140px;">
+                    <div style="display:inline-flex;align-items:center;gap:5px;background:<?= $hs['bg'] ?>;color:<?= $hs['color'] ?>;border:1px solid <?= $hs['border'] ?>;padding:4px 10px;border-radius:20px;font-size:.71rem;font-weight:700;white-space:nowrap;margin-bottom:4px;"
+                         title="<?= htmlspecialchars($hs['tip']) ?>">
+                        <i class="bi <?= $hs['icon'] ?>" style="font-size:.68rem;"></i>
+                        <?= $hs['label'] ?>
+                        <span style="opacity:.7;"><?= $hs['score'] ?></span>
+                    </div>
+                    <!-- mini score bar -->
+                    <div style="height:3px;background:#f1f5f9;border-radius:2px;overflow:hidden;width:100px;">
+                        <div style="height:100%;width:<?= $hs['score'] ?>%;background:<?= $hs['color'] ?>;border-radius:2px;transition:width .5s;"></div>
+                    </div>
+                    <div style="font-size:.63rem;color:#94a3b8;margin-top:3px;max-width:130px;line-height:1.3;"><?= htmlspecialchars($hs['tip']) ?></div>
+                </td>
+
                 <!-- Created by -->
                 <td style="padding:13px 16px;">
                     <div style="display:flex;align-items:center;gap:7px;">
@@ -214,7 +278,7 @@ $status_styles = [
             </tr>
             <?php endwhile; else: ?>
             <tr>
-                <td colspan="10" style="padding:52px 20px;text-align:center;">
+                <td colspan="11" style="padding:52px 20px;text-align:center;">
                     <i class="bi bi-megaphone" style="font-size:2.5rem;color:#e2e8f0;display:block;margin-bottom:12px;"></i>
                     <div style="font-size:.84rem;font-weight:600;color:#94a3b8;margin-bottom:4px;">No campaigns found</div>
                     <div style="font-size:.76rem;color:#cbd5e1;">

@@ -56,6 +56,23 @@ foreach(['new','repeat','loyal','high_value','lapsed'] as $seg) {
 $filter = $_GET['segment'] ?? '';
 $where  = $filter ? "AND dp.segment='".($db->real_escape_string($filter))."'" : '';
 
+// ── Churn Early Warning: Repeat/Loyal donors 45-89 days since last donation ──
+$churn_warning = $db->query("
+    SELECT u.name, u.email,
+           dp.segment, dp.total_donated, dp.total_campaigns,
+           COUNT(d.id) as donation_count,
+           MAX(d.created_at) as last_donation,
+           DATEDIFF(NOW(), MAX(d.created_at)) as days_since
+    FROM donor_profiles dp
+    JOIN users u ON dp.user_id = u.id
+    LEFT JOIN donations d ON d.donor_id = u.id AND d.status='verified'
+    WHERE dp.segment IN ('repeat','loyal','high_value')
+    GROUP BY dp.user_id
+    HAVING days_since BETWEEN 45 AND 89
+    ORDER BY days_since DESC
+");
+$churn_count = $churn_warning ? $churn_warning->num_rows : 0;
+
 $donors = $db->query("
     SELECT u.name, u.email, u.phone, u.created_at as joined,
            dp.segment, dp.total_donated, dp.total_campaigns,
@@ -201,6 +218,93 @@ $seg_cfg = [
     <div>
         <div style="font-size:.81rem;font-weight:700;color:#854d0e;margin-bottom:2px;">Top Contributor Recognition</div>
         <div style="font-size:.75rem;color:#92400e;"><strong><?= $seg_counts['high_value'] ?> high-value donor<?= $seg_counts['high_value']>1?'s':'' ?></strong> have contributed ≥ 10M VND each. Send personalized acknowledgements to strengthen their loyalty.</div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- ═══ CHURN EARLY WARNING ══════════════════════════ -->
+<?php if($churn_count > 0): ?>
+<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:16px;padding:18px 20px;margin-bottom:22px;box-shadow:0 2px 10px rgba(217,119,6,.08);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:11px;">
+            <div style="width:42px;height:42px;background:#d97706;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 3px 10px rgba(217,119,6,.3);">
+                <i class="bi bi-exclamation-triangle-fill" style="color:white;font-size:1rem;"></i>
+            </div>
+            <div>
+                <div style="font-size:.88rem;font-weight:800;color:#92400e;">⚠️ Churn Early Warning — <?= $churn_count ?> Donor<?= $churn_count>1?'s':'' ?> At Risk</div>
+                <div style="font-size:.74rem;color:#b45309;margin-top:2px;">These Repeat / Loyal / High-Value donors haven't donated in 45–89 days. Act now before they become Lapsed.</div>
+            </div>
+        </div>
+        <div style="background:#d97706;color:white;padding:5px 13px;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap;flex-shrink:0;">
+            🚨 Action Required
+        </div>
+    </div>
+    <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr style="background:#fef3c7;">
+                    <?php foreach(['Donor','Segment','Total Donated','Donations','Days Since Last','Risk Level','Action']) as $h): ?>
+                    <th style="padding:8px 14px;font-size:.61rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#92400e;border-bottom:1px solid #fde68a;text-align:left;white-space:nowrap;"><?= $h ?></th>
+                    <?php endforeach; ?>
+                </tr>
+            </thead>
+            <tbody>
+            <?php if($churn_warning) { $churn_warning->data_seek(0); while($cw=$churn_warning->fetch_assoc()):
+                $days = (int)$cw['days_since'];
+                $cfg  = $seg_cfg[$cw['segment']] ?? $seg_cfg['new'];
+                $risk_color = $days >= 75 ? '#dc2626' : '#d97706';
+                $risk_bg    = $days >= 75 ? '#fee2e2' : '#fef9c3';
+                $risk_label = $days >= 75 ? 'High Risk' : 'Medium Risk';
+                $risk_icon  = $days >= 75 ? 'bi-exclamation-circle-fill' : 'bi-exclamation-triangle-fill';
+            ?>
+            <tr style="border-bottom:1px solid #fde68a;background:white;" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background='white'">
+                <td style="padding:10px 14px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="width:30px;height:30px;border-radius:50%;background:<?= $cfg['bg'] ?>;border:1.5px solid <?= $cfg['border'] ?>;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:<?= $cfg['color'] ?>;flex-shrink:0;">
+                            <?= strtoupper(substr($cw['name'],0,1)) ?>
+                        </div>
+                        <div>
+                            <div style="font-size:.79rem;font-weight:700;color:#0f172a;"><?= htmlspecialchars($cw['name']) ?></div>
+                            <div style="font-size:.67rem;color:#94a3b8;"><?= htmlspecialchars($cw['email']) ?></div>
+                        </div>
+                    </div>
+                </td>
+                <td style="padding:10px 14px;">
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:<?= $cfg['bg'] ?>;color:<?= $cfg['color'] ?>;border:1px solid <?= $cfg['border'] ?>;padding:3px 9px;border-radius:20px;font-size:.69rem;font-weight:700;white-space:nowrap;">
+                        <i class="bi <?= $cfg['icon'] ?>" style="font-size:.65rem;"></i><?= $cfg['label'] ?>
+                    </span>
+                </td>
+                <td style="padding:10px 14px;white-space:nowrap;">
+                    <span style="font-size:.82rem;font-weight:800;color:#0f172a;"><?= number_format($cw['total_donated']/1000000,1) ?>M</span>
+                    <span style="font-size:.65rem;color:#94a3b8;"> VND</span>
+                </td>
+                <td style="padding:10px 14px;text-align:center;">
+                    <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:<?= $cfg['bg'] ?>;border-radius:50%;font-size:.78rem;font-weight:800;color:<?= $cfg['color'] ?>;">
+                        <?= $cw['donation_count'] ?>
+                    </span>
+                </td>
+                <td style="padding:10px 14px;white-space:nowrap;">
+                    <div style="font-size:.8rem;font-weight:800;color:<?= $risk_color ?>;"><?= $days ?> days ago</div>
+                    <div style="height:4px;background:#f1f5f9;border-radius:2px;overflow:hidden;margin-top:4px;width:80px;">
+                        <div style="height:100%;width:<?= min(100,round($days/90*100)) ?>%;background:<?= $risk_color ?>;border-radius:2px;"></div>
+                    </div>
+                    <div style="font-size:.63rem;color:#94a3b8;margin-top:2px;"><?= 90-$days ?> days to Lapsed</div>
+                </td>
+                <td style="padding:10px 14px;">
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:<?= $risk_bg ?>;color:<?= $risk_color ?>;padding:3px 9px;border-radius:20px;font-size:.69rem;font-weight:700;white-space:nowrap;">
+                        <i class="bi <?= $risk_icon ?>" style="font-size:.65rem;"></i><?= $risk_label ?>
+                    </span>
+                </td>
+                <td style="padding:10px 14px;">
+                    <div style="font-size:.72rem;color:#b45309;background:#fef3c7;border:1px solid #fde68a;border-radius:7px;padding:5px 9px;line-height:1.4;">
+                        <i class="bi bi-send-fill" style="font-size:.66rem;margin-right:3px;"></i>
+                        <?= $cfg['label'] === 'High-Value' ? 'Send VIP re-engagement' : 'Send campaign update' ?>
+                    </div>
+                </td>
+            </tr>
+            <?php endwhile; } ?>
+            </tbody>
+        </table>
     </div>
 </div>
 <?php endif; ?>

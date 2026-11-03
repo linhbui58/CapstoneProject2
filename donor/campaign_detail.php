@@ -506,6 +506,71 @@ $msg_count   = $messages    ? $messages->num_rows    : 0;
         </div>
         <div style="font-size:.73rem;color:rgba(255,255,255,.65);line-height:1.6;">Every donation is verified by Finance Staff. Fund usage is tracked with evidence and published here.</div>
     </div>
+
+    <?php
+    // ── Fund Transparency Score ───────────────────────
+    $ts_alloc_count    = (int)$db->query("SELECT COUNT(*) c FROM fund_allocations WHERE campaign_id=$id")->fetch_assoc()['c'];
+    $ts_evidence_count = (int)$db->query("SELECT COUNT(*) c FROM fund_allocations WHERE campaign_id=$id AND evidence_url IS NOT NULL AND evidence_url<>''")->fetch_assoc()['c'];
+    $ts_disbursed      = (int)$db->query("SELECT COUNT(*) c FROM fund_allocations WHERE campaign_id=$id AND status IN('disbursed','completed')")->fetch_assoc()['c'];
+    $ts_updates_count  = (int)$db->query("SELECT COUNT(*) c FROM campaign_updates WHERE campaign_id=$id AND is_published=1")->fetch_assoc()['c'];
+    $ts_total_alloc    = (float)$db->query("SELECT COALESCE(SUM(amount),0) t FROM fund_allocations WHERE campaign_id=$id")->fetch_assoc()['t'];
+    $raised            = (float)$campaign['raised_amount'];
+
+    // Score calculation
+    $ts_score = 0;
+    // +25 has allocation records
+    if ($ts_alloc_count > 0) $ts_score += 25;
+    // +35 disbursed funds have evidence (proportional)
+    if ($ts_disbursed > 0) $ts_score += min(35, (int)round(($ts_evidence_count / $ts_disbursed) * 35));
+    // +25 has campaign updates
+    if ($ts_updates_count > 0) $ts_score += min(25, $ts_updates_count * 8);
+    // +15 utilization ratio
+    if ($raised > 0 && $ts_total_alloc > 0) $ts_score += min(15, (int)round(min(1, $ts_total_alloc / $raised) * 15));
+    $ts_score = min(100, $ts_score);
+
+    $ts_color  = $ts_score >= 80 ? '#15803d' : ($ts_score >= 50 ? '#d97706' : '#dc2626');
+    $ts_bg     = $ts_score >= 80 ? '#dcfce7'  : ($ts_score >= 50 ? '#fef9c3'  : '#fee2e2');
+    $ts_border = $ts_score >= 80 ? '#bbf7d0'  : ($ts_score >= 50 ? '#fde68a'  : '#fecaca');
+    $ts_label  = $ts_score >= 80 ? 'High'      : ($ts_score >= 50 ? 'Moderate' : 'Low');
+    $ts_icon   = $ts_score >= 80 ? 'bi-shield-fill-check' : ($ts_score >= 50 ? 'bi-shield-half' : 'bi-shield-exclamation');
+    ?>
+
+    <!-- Transparency Score Panel -->
+    <div style="background:white;border:1.5px solid <?= $ts_border ?>;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.04);">
+        <div style="background:<?= $ts_bg ?>;border-bottom:1px solid <?= $ts_border ?>;padding:11px 15px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:7px;">
+                <i class="bi <?= $ts_icon ?>" style="color:<?= $ts_color ?>;font-size:.88rem;"></i>
+                <span style="font-size:.79rem;font-weight:700;color:<?= $ts_color ?>;">Fund Transparency Score</span>
+            </div>
+            <span style="font-size:1.1rem;font-weight:900;color:<?= $ts_color ?>;"><?= $ts_score ?><span style="font-size:.72rem;font-weight:600;">/100</span></span>
+        </div>
+        <div style="padding:13px 15px;">
+            <!-- Score bar -->
+            <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden;margin-bottom:10px;">
+                <div style="height:100%;width:<?= $ts_score ?>%;background:<?= $ts_color ?>;border-radius:4px;transition:width .8s ease;"></div>
+            </div>
+            <!-- Criteria checklist -->
+            <?php
+            $criteria = [
+                [$ts_alloc_count > 0,   'Fund allocation records',         '+25'],
+                [$ts_disbursed > 0 && $ts_evidence_count >= $ts_disbursed, 'All disbursements have evidence', '+35'],
+                [$ts_updates_count > 0, 'Campaign progress updates posted', '+25'],
+                [$raised > 0 && $ts_total_alloc > 0, 'Funds actively utilized',  '+15'],
+            ];
+            foreach($criteria as [$met,$label,$pts]): ?>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:18px;height:18px;border-radius:50%;background:<?= $met?'#dcfce7':'#f1f5f9' ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="bi bi-<?= $met?'check':'x' ?>-lg" style="color:<?= $met?'#15803d':'#94a3b8' ?>;font-size:.58rem;font-weight:900;"></i>
+                </div>
+                <span style="font-size:.72rem;color:<?= $met?'#374151':'#94a3b8' ?>;flex:1;"><?= $label ?></span>
+                <span style="font-size:.68rem;font-weight:700;color:<?= $met?$ts_color:'#cbd5e1' ?>;"><?= $pts ?></span>
+            </div>
+            <?php endforeach; ?>
+            <div style="margin-top:8px;padding:7px 10px;background:<?= $ts_bg ?>;border-radius:8px;font-size:.71rem;color:<?= $ts_color ?>;font-weight:600;text-align:center;">
+                <?= $ts_label ?> Transparency · <?= $ts_evidence_count ?>/<?= max(1,$ts_disbursed) ?> disbursements evidenced
+            </div>
+        </div>
+    </div>
 </div>
 
 </div><!-- end grid -->
