@@ -3,6 +3,7 @@ $pageTitle  = 'Disbursement Requests';
 $activePage = 'disbursement_requests';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('campaign_staff');
+require_once dirname(__DIR__) . '/includes/funds.php';
 
 $db  = getApplicationDB();
 $uid = $user['id'];
@@ -40,23 +41,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $ev = uploadDisbursEvidence($_FILES['evidence_file'] ?? ['error' => UPLOAD_ERR_NO_FILE]);
             if ($ev) {
-                if ($row['evidence_url']) { $old = dirname(__DIR__).'/'.$row['evidence_url']; if (file_exists($old)) @unlink($old); }
-                $evSafe = $db->real_escape_string($ev);
-                $nSafe  = $db->real_escape_string($note);
-                $db->query("UPDATE disbursement_requests SET evidence_url='$evSafe', evidence_note='$nSafe', status='disbursed', disbursed_at=NOW() WHERE id=$req_id");
+                $transactionStarted = false;
+                try {
+                    if (!$db->begin_transaction()) {
+                        throw new RuntimeException('Unable to start disbursement transaction: ' . $db->error);
+                    }
+                    $transactionStarted = true;
 
-                // Also create a fund_allocation record for transparency
-                $req = $db->query("SELECT * FROM disbursement_requests WHERE id=$req_id")->fetch_assoc();
-                $pt = $db->real_escape_string($req['title']);
-                $desc = $db->real_escape_string($req['beneficiary'] . ' — ' . substr($req['purpose'], 0, 200));
-                $db->query("INSERT INTO fund_allocations (campaign_id, amount, purpose, description, allocated_by, allocation_date, status, evidence_url, evidence_note)
-                            VALUES ({$req['campaign_id']}, {$req['amount']}, '$pt', '$desc', $uid, CURDATE(), 'disbursed', '$evSafe', '$nSafe')");
+                    $request = $db->prepare(
+                        "SELECT campaign_id, amount, title, beneficiary, purpose, evidence_url
+                         FROM disbursement_requests
+                         WHERE id = ? AND requested_by = ? AND status = 'approved'
+                         FOR UPDATE"
+                    );
+                    if (!$request
+                        || !$request->bind_param('ii', $req_id, $uid)
+                        || !$request->execute()) {
+                        throw new RuntimeException('Unable to load approved request: ' . ($request ? $request->error : $db->error));
+                    }
+                    $request->bind_result($campaignId, $amount, $title, $beneficiary, $purpose, $oldEvidenceUrl);
+                    if (!$request->fetch()) {
+                        $request->close();
+                        throw new RuntimeException('This request has already been processed.');
+                    }
+                    $request->close();
+
+                    $update = $db->prepare(
+                        "UPDATE disbursement_requests
+                         SET evidence_url = ?, evidence_note = ?, status = 'disbursed', disbursed_at = NOW()
+                         WHERE id = ? AND status = 'approved'"
+                    );
+                    if (!$update
+                        || !$update->bind_param('ssi', $ev, $note, $req_id)
+                        || !$update->execute()
+                        || $update->affected_rows !== 1) {
+                        throw new RuntimeException('Unable to record disbursement: ' . ($update ? $update->error : $db->error));
+                    }
+                    $update->close();
+
+                    $description = $beneficiary . ' — ' . substr($purpose, 0, 200);
+                    $allocation = $db->prepare(
+                        "INSERT INTO fund_allocations
+                         (campaign_id, amount, purpose, description, allocated_by, allocation_date, status, evidence_url, evidence_note)
+                         VALUES (?, ?, ?, ?, ?, CURDATE(), 'disbursed', ?, ?)"
+                    );
+                    if (!$allocation
+                        || !$allocation->bind_param('idssiss', $campaignId, $amount, $title, $description, $uid, $ev, $note)
+                        || !$allocation->execute()) {
+                        throw new RuntimeException('Unable to create fund allocation: ' . ($allocation ? $allocation->error : $db->error));
+                    }
+                    $allocation->close();
+
+                    if (!$db->commit()) {
+                        throw new RuntimeException('Unable to commit disbursement: ' . $db->error);
+                    }
+                    $transactionStarted = false;
+
+                    if ($oldEvidenceUrl) {
+                        $oldPath = dirname(__DIR__) . '/' . $oldEvidenceUrl;
+                        if (is_file($oldPath) && !unlink($oldPath)) {
+                            error_log('Unable to remove replaced disbursement evidence: ' . $oldPath);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $rolledBack = true;
+                    if ($transactionStarted) {
+                        $rolledBack = $db->rollback();
+                    }
+                    if ($rolledBack) {
+                        $uploadedPath = dirname(__DIR__) . '/' . $ev;
+                        if (is_file($uploadedPath) && !unlink($uploadedPath)) {
+                            error_log('Unable to remove uncommitted disbursement evidence: ' . $uploadedPath);
+                        }
+                    }
+                    throw $e;
+                }
 
                 setFlash('success', 'Evidence uploaded. Disbursement recorded and fund allocation updated.');
             } else {
                 setFlash('warning', 'No file uploaded.');
             }
-        } catch (RuntimeException $e) { setFlash('danger', $e->getMessage()); }
+        } catch (Throwable $e) {
+            error_log('Unable to record disbursement evidence: ' . $e->getMessage());
+            setFlash('danger', $e->getMessage());
+        }
         redirect(SITE_URL . '/campaign_staff/disbursement_requests.php');
     }
 
@@ -75,12 +143,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($purpose))   $errors[] = 'Purpose is required.';
 
     if (empty($errors)) {
-        $camp = $db->query("SELECT raised_amount FROM campaigns WHERE id=$campaign_id")->fetch_assoc();
-        $already_req  = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM disbursement_requests WHERE campaign_id=$campaign_id AND status IN ('pending','approved')")->fetch_assoc()['t'];
-        $already_alloc= $db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations WHERE campaign_id=$campaign_id AND status!='completed'")->fetch_assoc()['t'];
-        $available = ($camp['raised_amount'] ?? 0) - max($already_req, $already_alloc);
-        if ($amount > $available + 1) {
-            $errors[] = 'Requested amount exceeds available funds (' . formatCurrency(max(0, $available)) . ').';
+        $funds = getCampaignFunds($db, $campaign_id);
+        if ($amount > $funds['available']) {
+            $errors[] = 'Requested amount exceeds available funds (' . formatCurrency(max(0, $funds['available'])) . ').';
         }
     }
 

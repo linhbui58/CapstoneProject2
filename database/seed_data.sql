@@ -236,6 +236,12 @@ JOIN (
 ) t ON dp.user_id = t.donor_id
 SET dp.total_donated = t.total;
 
+UPDATE campaigns c
+SET c.raised_amount = COALESCE(
+    (SELECT SUM(d.amount) FROM donations d WHERE d.campaign_id = c.id AND d.status = 'verified'),
+    0
+);
+
 SELECT 'Seed data inserted successfully!' as Result;
 SELECT COUNT(*) as Total_Users FROM users;
 SELECT COUNT(*) as Total_Campaigns FROM campaigns;

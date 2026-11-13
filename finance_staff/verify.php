@@ -218,7 +218,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (string)$txn['donor_name'],
                     (float)$txn['amount'],
                     $safeCampaignTitle,
-                    $safeRefCode
+                    $safeRefCode,
+                    (int)$txn['donor_id'],
+                    (int)$id
                 );
                 
                 if (!$emailSent) {

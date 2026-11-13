@@ -80,7 +80,7 @@ $camps_supported  = (int)$overall['campaigns_supported'];
                 <i class="bi bi-award-fill" style="color:#d97706;font-size:.9rem;"></i>
             </span>
             My Impact Summary
-            <span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;">Advanced Feature</span>
+            <span style="background:#fef9c3;color:#854d0e;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;">Automated Summary</span>
         </h1>
         <p style="color:#64748b;font-size:.79rem;margin:0 0 0 45px;">See how your donations have made a real difference</p>
     </div>

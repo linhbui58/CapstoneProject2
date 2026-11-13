@@ -6,6 +6,8 @@ The **VCF Donation & Fundraising Management System** is a web-based application 
 
 The system aims to improve the consistency, traceability, and management of donation and transaction records.
 
+The donor impact summary is an automated summary based on donation/campaign data and fixed templates; it does not use generative AI.
+
 ## 2. Project Objectives
 
 * Manage donation information.
@@ -142,6 +144,8 @@ For Gmail, use a Google App Password with 2-Step Verification enabled, not the a
 Use the actual database script and configuration required by the repository. Do not commit database passwords or other secrets to GitHub.
 
 For an existing installation, import `database/migrations/20261026_disbursement_requests.sql`, `database/migrations/20261027_campaign_updates.sql`, `database/migrations/20261028_campaign_update_images.sql`, and `database/migrations/20261028_payos_payment_provider.sql` into the application's selected database using phpMyAdmin. These add disbursement/campaign update tables, ensure the campaign update image column exists, add evidence columns, and add the payOS provider marker. Import `database/migrations/20261028_sepay_webhook.sql` only if you continue using the separate SePay bank-account webhook for legacy donations. New installations get this schema from `database/full_setup.sql`.
+
+For existing installations, import `database/migrations/20261113_email_logs.sql` to enable thank-you email reporting and `database/migrations/20261113_sync_campaign_raised_amount.sql` to synchronize campaign totals with verified campaign-linked donations. `database/full_setup.sql` and `database/seed_data.sql` perform the same campaign-total synchronization for seeded installations, and `database/full_setup.sql` creates the email log table for new installations.
 
 Keep the `.htaccess` files in `assets/uploads/` and `assets/images/campaigns/` when deploying. They use Apache 2.4 authorization rules to block direct requests for executable script extensions while still allowing uploaded images and evidence to be served.
 

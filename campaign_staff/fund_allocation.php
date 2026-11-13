@@ -3,6 +3,7 @@ $pageTitle  = 'Fund Allocation';
 $activePage = 'fund_allocation';
 require_once dirname(__DIR__) . '/includes/header.php';
 requireRole('campaign_staff');
+require_once dirname(__DIR__) . '/includes/funds.php';
 
 $db  = getApplicationDB();
 $uid = $user['id'];
@@ -107,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $purpose         = sanitize($_POST['purpose'] ?? '');
         $description     = sanitize($_POST['description'] ?? '');
         $allocation_date = sanitize($_POST['allocation_date'] ?? '');
-        $status          = sanitize($_POST['status'] ?? 'planned');
+        $status          = 'planned';
         $evidence_note   = trim($_POST['evidence_note'] ?? '');
 
         if (!$campaign_id)       $errors[] = 'Please select a campaign.';
@@ -126,11 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (empty($errors)) {
-            $camp    = $db->query("SELECT raised_amount FROM campaigns WHERE id=$campaign_id")->fetch_assoc();
-            $already = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations WHERE campaign_id=$campaign_id AND status!='completed'")->fetch_assoc()['t'];
-            $available = ($camp['raised_amount'] ?? 0) - $already;
-            if ($amount > $available) {
-                $errors[] = 'Amount exceeds available funds (' . formatCurrency($available) . ').';
+            $funds = getCampaignFunds($db, $campaign_id);
+            if ($amount > $funds['available']) {
+                $errors[] = 'Amount exceeds available funds (' . formatCurrency(max(0, $funds['available'])) . ').';
             }
         }
 
@@ -169,12 +168,12 @@ $allocations = $db->query("
 // Summary for selected campaign
 $summary = null;
 if ($filter_campaign) {
-    $ci        = $db->query("SELECT raised_amount, title FROM campaigns WHERE id=$filter_campaign")->fetch_assoc();
-    $allocated = $db->query("SELECT COALESCE(SUM(amount),0) as t FROM fund_allocations WHERE campaign_id=$filter_campaign")->fetch_assoc()['t'];
-    $summary   = [
-        'raised'    => (float)($ci['raised_amount'] ?? 0),
-        'allocated' => (float)$allocated,
-        'available' => (float)($ci['raised_amount'] ?? 0) - (float)$allocated,
+    $ci = $db->query("SELECT title FROM campaigns WHERE id=$filter_campaign")->fetch_assoc();
+    $funds = getCampaignFunds($db, $filter_campaign);
+    $summary = [
+        'raised'    => $funds['raised'],
+        'allocated' => $funds['allocated'] + $funds['pending_requests'],
+        'available' => $funds['available'],
         'title'     => $ci['title'] ?? '',
     ];
 }
@@ -224,7 +223,7 @@ $status_styles = [
             <span style="font-weight:800;color:<?= $c ?>;"><?= $v ?></span>
         </div>
         <?php endforeach; ?>
-        <?php $avail_pct = $summary['raised'] > 0 ? min(100, round(($summary['available'] / $summary['raised']) * 100, 1)) : 0; ?>
+        <?php $avail_pct = $summary['raised'] > 0 ? max(0, min(100, round(($summary['available'] / $summary['raised']) * 100, 1))) : 0; ?>
         <div style="height:6px;background:rgba(0,0,0,.08);border-radius:3px;overflow:hidden;margin-top:6px;">
             <div style="height:100%;width:<?= $avail_pct ?>%;background:linear-gradient(90deg,#3b82f6,#1447c0);border-radius:3px;"></div>
         </div>
@@ -294,8 +293,6 @@ $status_styles = [
                     <select name="status"
                             style="width:100%;height:38px;padding:0 11px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:.81rem;color:#0f172a;background:white;outline:none;cursor:pointer;">
                         <option value="planned">Planned</option>
-                        <option value="disbursed">Disbursed</option>
-                        <option value="completed">Completed</option>
                     </select>
                 </div>
             </div>

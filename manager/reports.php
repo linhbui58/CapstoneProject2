@@ -109,6 +109,43 @@ foreach ($allocation_status_labels as $status => $label) {
     }
 }
 $allocation_status_summary = $allocation_status_summary ? implode(', ', $allocation_status_summary) : 'No allocation records';
+
+// Fund-use transparency: compare completed spending and its supporting evidence.
+$util = $db->query("
+    SELECT COUNT(*) AS spent_cnt,
+           COALESCE(SUM(amount),0) AS spent_total,
+           COALESCE(SUM(CASE WHEN evidence_url IS NOT NULL AND evidence_url <> '' THEN 1 ELSE 0 END),0) AS ev_cnt,
+           COALESCE(SUM(CASE WHEN evidence_url IS NOT NULL AND evidence_url <> '' THEN amount ELSE 0 END),0) AS ev_total
+    FROM fund_allocations
+    WHERE status IN ('disbursed','completed')
+")->fetch_assoc();
+$util_spent_cnt = (int)$util['spent_cnt'];
+$util_spent_total = (float)$util['spent_total'];
+$util_ev_cnt = (int)$util['ev_cnt'];
+$util_ev_total = (float)$util['ev_total'];
+$util_evidence_rate = $util_spent_cnt > 0 ? round($util_ev_cnt / $util_spent_cnt * 100, 1) : 0;
+$util_rate = $campaign_verified_raised > 0
+    ? round($util_spent_total / $campaign_verified_raised * 100, 1)
+    : 0;
+
+// The migration is applied separately on existing installations.
+$email_sent = 0;
+$email_failed = 0;
+try {
+    $emailRows = $db->query("SELECT status, COUNT(*) AS c FROM email_logs GROUP BY status");
+    while ($row = $emailRows->fetch_assoc()) {
+        if ($row['status'] === 'sent') {
+            $email_sent = (int)$row['c'];
+        } elseif ($row['status'] === 'failed') {
+            $email_failed = (int)$row['c'];
+        }
+    }
+} catch (Throwable $e) {
+    error_log('email_logs not available: ' . $e->getMessage());
+}
+$email_total = $email_sent + $email_failed;
+$email_rate = $email_total > 0 ? round($email_sent / $email_total * 100, 1) : 0;
+
 $allocation_comparison = abs($allocation_difference) < 0.01
     ? 'Recorded allocations of ' . formatCurrency($total_allocated) . ' match verified campaign-linked donations.'
     : ($allocation_difference > 0
@@ -279,6 +316,16 @@ $campaign_status_styles = [
                     <td>Fund allocation</td>
                     <td><?= formatCurrency($total_allocated) ?></td>
                     <td><?= htmlspecialchars($allocation_status_summary, ENT_QUOTES, 'UTF-8') ?>. <?= htmlspecialchars($allocation_comparison, ENT_QUOTES, 'UTF-8') ?></td>
+                </tr>
+                <tr>
+                    <td>Fund-use transparency</td>
+                    <td><?= $util_ev_cnt ?> of <?= $util_spent_cnt ?> spent allocations have evidence (<?= number_format($util_evidence_rate, 1) ?>%)</td>
+                    <td>Spent <?= formatCurrency($util_spent_total) ?> = <?= number_format($util_rate, 1) ?>% of verified campaign donations; evidence-backed amount <?= formatCurrency($util_ev_total) ?></td>
+                </tr>
+                <tr>
+                    <td>Donor acknowledgement emails</td>
+                    <td><?= $email_sent ?> sent, <?= $email_failed ?> failed (<?= number_format($email_rate, 1) ?>% sent)</td>
+                    <td>Thank-you emails with e-receipt attempted after a donation is verified, from the email log</td>
                 </tr>
                 <tr>
                     <td>Verification turnaround</td>

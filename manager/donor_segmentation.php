@@ -26,10 +26,10 @@ $db->query("
         GROUP BY d.donor_id
     ) s ON dp.user_id = s.donor_id
     SET dp.segment = CASE
+            WHEN DATEDIFF(NOW(),s.last_donation) >= 90 THEN 'lapsed'
             WHEN s.total >= 10000000             THEN 'high_value'
             WHEN s.cnt   >= 5                    THEN 'loyal'
             WHEN s.cnt   >= 2                    THEN 'repeat'
-            WHEN DATEDIFF(NOW(),s.last_donation) > 90 THEN 'lapsed'
             ELSE 'new'
         END,
         dp.total_donated   = s.total,

@@ -450,8 +450,31 @@ JOIN (
 ) t ON dp.user_id = t.donor_id
 SET dp.total_donated = t.total;
 
+-- Keep campaign totals synchronized with verified campaign-linked donations.
+UPDATE campaigns c
+SET c.raised_amount = COALESCE(
+    (SELECT SUM(d.amount) FROM donations d WHERE d.campaign_id = c.id AND d.status = 'verified'),
+    0
+);
+
 SELECT 'Seed data inserted successfully!' as Result;
 SELECT COUNT(*) as Total_Users FROM users;
 SELECT COUNT(*) as Total_Campaigns FROM campaigns;
 SELECT COUNT(*) as Total_Donations FROM donations;
 SELECT COUNT(*) as Pending_Verification FROM transactions WHERE verification_status='pending_verification';
+
+-- Email delivery audit log
+CREATE TABLE IF NOT EXISTS email_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    donor_id INT NULL,
+    transaction_id INT NULL,
+    recipient_email VARCHAR(150) NOT NULL,
+    email_type VARCHAR(30) NOT NULL DEFAULT 'thank_you',
+    status ENUM('sent','failed') NOT NULL,
+    error_message VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_email_logs_status (status),
+    INDEX idx_email_logs_donor (donor_id),
+    FOREIGN KEY (donor_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
+);

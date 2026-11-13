@@ -10,13 +10,95 @@ $db = getApplicationDB();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $donation_id = (int)($_POST['donation_id'] ?? 0);
     $campaign_id = (int)($_POST['campaign_id'] ?? 0);
-    if ($donation_id && $campaign_id) {
-        $db->query("UPDATE donations SET campaign_id=$campaign_id WHERE id=$donation_id AND status='verified'");
-        // Update campaign raised amount
-        $amt = $db->query("SELECT amount FROM donations WHERE id=$donation_id")->fetch_assoc()['amount'];
-        $db->query("UPDATE campaigns SET raised_amount=raised_amount+$amt WHERE id=$campaign_id");
-        setFlash('success', 'Donation linked to campaign successfully!');
+    $flashType = 'danger';
+    $flashMsg = 'Invalid request.';
+
+    if ($donation_id > 0 && $campaign_id > 0) {
+        $transactionStarted = false;
+        try {
+            if (!$db->begin_transaction()) {
+                throw new RuntimeException('Unable to start donation link transaction: ' . $db->error);
+            }
+            $transactionStarted = true;
+
+            $donation = $db->prepare(
+                "SELECT amount FROM donations
+                 WHERE id = ? AND status = 'verified' AND campaign_id IS NULL
+                 FOR UPDATE"
+            );
+            if (!$donation || !$donation->bind_param('i', $donation_id) || !$donation->execute()) {
+                throw new RuntimeException('Unable to check donation: ' . ($donation ? $donation->error : $db->error));
+            }
+            $donation->bind_result($amount);
+            $found = $donation->fetch();
+            $donation->close();
+
+            $campaignIsActive = false;
+            if ($found) {
+                $campaign = $db->prepare("SELECT id FROM campaigns WHERE id = ? AND status = 'active' FOR UPDATE");
+                if (!$campaign || !$campaign->bind_param('i', $campaign_id) || !$campaign->execute()) {
+                    throw new RuntimeException('Unable to check campaign: ' . ($campaign ? $campaign->error : $db->error));
+                }
+                $campaign->store_result();
+                $campaignIsActive = $campaign->num_rows === 1;
+                $campaign->close();
+            }
+
+            if (!$found) {
+                $db->rollback();
+                $transactionStarted = false;
+                $flashType = 'warning';
+                $flashMsg = 'This donation is already linked or is no longer verified.';
+            } elseif (!$campaignIsActive) {
+                $db->rollback();
+                $transactionStarted = false;
+                $flashType = 'warning';
+                $flashMsg = 'Please choose an active campaign.';
+            } else {
+                $updateDonation = $db->prepare(
+                    'UPDATE donations SET campaign_id = ? WHERE id = ? AND campaign_id IS NULL'
+                );
+                if (!$updateDonation
+                    || !$updateDonation->bind_param('ii', $campaign_id, $donation_id)
+                    || !$updateDonation->execute()
+                    || $updateDonation->affected_rows !== 1) {
+                    throw new RuntimeException(
+                        'Unable to link donation: ' . ($updateDonation ? $updateDonation->error : $db->error)
+                    );
+                }
+                $updateDonation->close();
+
+                $updateCampaign = $db->prepare(
+                    'UPDATE campaigns SET raised_amount = raised_amount + ? WHERE id = ?'
+                );
+                $donationAmount = (float)$amount;
+                if (!$updateCampaign
+                    || !$updateCampaign->bind_param('di', $donationAmount, $campaign_id)
+                    || !$updateCampaign->execute()
+                    || $updateCampaign->affected_rows !== 1) {
+                    throw new RuntimeException(
+                        'Unable to update campaign total: ' . ($updateCampaign ? $updateCampaign->error : $db->error)
+                    );
+                }
+                $updateCampaign->close();
+
+                if (!$db->commit()) {
+                    throw new RuntimeException('Unable to commit donation link: ' . $db->error);
+                }
+                $transactionStarted = false;
+                $flashType = 'success';
+                $flashMsg = 'Donation linked to campaign successfully!';
+            }
+        } catch (Throwable $e) {
+            if ($transactionStarted) {
+                $db->rollback();
+            }
+            error_log('Link donation failed: ' . $e->getMessage());
+            $flashType = 'danger';
+            $flashMsg = 'Unable to link this donation. Please try again.';
+        }
     }
+    setFlash($flashType, $flashMsg);
     redirect(SITE_URL . '/campaign_staff/link_donations.php');
 }
 

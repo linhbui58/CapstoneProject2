@@ -1,8 +1,37 @@
 <?php
 use PHPMailer\PHPMailer\PHPMailer;
 
-function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transactionCode) {
+function logEmail(?int $donorId, ?int $transactionId, string $email, string $type, string $status, ?string $error = null): void
+{
+    try {
+        $db = getApplicationDB();
+        $stmt = $db->prepare(
+            'INSERT INTO email_logs (donor_id, transaction_id, recipient_email, email_type, status, error_message)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        if (!$stmt) {
+            throw new RuntimeException($db->error);
+        }
+
+        $errorMessage = $error !== null
+            ? (function_exists('mb_substr') ? mb_substr($error, 0, 255) : substr($error, 0, 255))
+            : null;
+        if (!$stmt->bind_param('iissss', $donorId, $transactionId, $email, $type, $status, $errorMessage)
+            || !$stmt->execute()) {
+            throw new RuntimeException('Unable to write email log: ' . $stmt->error);
+        }
+        $stmt->close();
+    } catch (Throwable $e) {
+        error_log('Unable to write email log: ' . $e->getMessage());
+    }
+}
+
+function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transactionCode, $donorId = null, $transactionId = null): bool
+{
     $mail = null;
+    $donorId = $donorId !== null ? (int)$donorId : null;
+    $transactionId = $transactionId !== null ? (int)$transactionId : null;
+    $email = (string)$toEmail;
 
     try {
         $autoloadPath = __DIR__ . '/../vendor/autoload.php';
@@ -41,35 +70,34 @@ function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transact
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-
         $mail->Username   = trim($config['SMTP_USER']);
         $mail->Password   = preg_replace('/\s+/', '', $config['SMTP_PASS']);
-
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
         $mail->CharSet    = 'UTF-8';
 
-        // Tự động lấy email gửi đi từ file config
         $mail->setFrom($mail->Username, 'VinaCapital Foundation');
-        $mail->addAddress($toEmail, $toName);
-
-        // Nội dung Email
+        $mail->addAddress($email, (string)$toName);
         $mail->isHTML(true);
         $mail->Subject = 'Xác nhận quyên góp thành công - Cảm ơn bạn!';
 
-        $formattedAmount = number_format($amount, 0, ',', '.') . ' VNĐ';
-        $campaignText = $campaignTitle ? "vào chiến dịch <strong>$campaignTitle</strong>" : "cho quỹ của chúng tôi";
+        $safeName = htmlspecialchars((string)$toName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeCode = htmlspecialchars((string)$transactionCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeCampaign = htmlspecialchars((string)$campaignTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $formattedAmount = number_format((float)$amount, 0, ',', '.') . ' VNĐ';
+        $campaignText = $safeCampaign !== ''
+            ? "vào chiến dịch <strong>$safeCampaign</strong>"
+            : 'cho quỹ của chúng tôi';
 
-        // Template HTML Email/Biên lai
         $mail->Body = "
             <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
                 <h2 style='color: #d9534f;'>Cảm ơn tấm lòng vàng của bạn!</h2>
-                <p>Kính gửi <strong>$toName</strong>,</p>
+                <p>Kính gửi <strong>$safeName</strong>,</p>
                 <p>VinaCapital Foundation xin chân thành cảm ơn bạn đã quyên góp số tiền <strong>$formattedAmount</strong> $campaignText.</p>
                 <div style='background-color: #f9f9f9; padding: 15px; border-left: 4px solid #5cb85c; margin: 20px 0;'>
                     <h3 style='margin-top: 0;'>Chi tiết biên lai điện tử:</h3>
                     <ul style='list-style: none; padding: 0;'>
-                        <li><strong>Mã giao dịch:</strong> $transactionCode</li>
+                        <li><strong>Mã giao dịch:</strong> $safeCode</li>
                         <li><strong>Số tiền:</strong> $formattedAmount</li>
                         <li><strong>Ngày xác nhận:</strong> " . date('d/m/Y H:i:s') . "</li>
                     </ul>
@@ -81,12 +109,16 @@ function sendThankYouEmail($toEmail, $toName, $amount, $campaignTitle, $transact
         ";
 
         $mail->send();
+        logEmail($donorId, $transactionId, $email, 'thank_you', 'sent');
         return true;
     } catch (Throwable $e) {
-        error_log("Lỗi gửi email tri ân: {$e->getMessage()}");
+        error_log('Lỗi gửi email tri ân: ' . $e->getMessage());
+        $detail = $e->getMessage();
         if ($mail instanceof PHPMailer && $mail->ErrorInfo !== '') {
             error_log('PHPMailer: ' . $mail->ErrorInfo);
+            $detail = $mail->ErrorInfo;
         }
+        logEmail($donorId, $transactionId, $email, 'thank_you', 'failed', $detail);
         return false;
     }
 }
