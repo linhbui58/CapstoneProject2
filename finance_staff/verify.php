@@ -212,7 +212,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Đảm bảo không bị truyền tham số null vào hàm gửi mail
                 $safeCampaignTitle = !empty($txn['campaign_title']) ? (string)$txn['campaign_title'] : 'General Donation';
                 $safeRefCode = !empty($txn['reference_code']) ? (string)$txn['reference_code'] : (string)$id;
-                
+
+                // Generate impact summary for donor
+                if (!empty($txn['campaign_id'])) {
+                    generateImpactSummary($db, (int)$txn['donor_id'], (int)$txn['campaign_id'], (float)$txn['amount']);
+                }
+
                 $emailSent = sendThankYouEmail(
                     (string)$txn['donor_email'],
                     (string)$txn['donor_name'],

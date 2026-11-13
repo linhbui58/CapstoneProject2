@@ -53,6 +53,21 @@ if(!empty($campaign_ids)) {
     if($allocs) while($a=$allocs->fetch_assoc()) {
         $alloc_map[$a['campaign_id']][] = $a;
     }
+
+// ── AI-generated impact summaries ────────────────
+$impact_summaries = $db->query("
+    SELECT is2.*, c.title as campaign_title, c.image_url
+    FROM impact_summaries is2
+    JOIN campaigns c ON is2.campaign_id = c.id
+    WHERE is2.donor_id = $uid
+    ORDER BY is2.generated_at DESC
+");
+$summary_map = [];
+if ($impact_summaries) {
+    while ($s = $impact_summaries->fetch_assoc()) {
+        $summary_map[$s['campaign_id']] = $s;
+    }
+}
 }
 
 // ── Segment info ──────────────────────────────────
@@ -247,6 +262,21 @@ $camps_supported  = (int)$overall['campaigns_supported'];
                 <i class="bi bi-pie-chart-fill" style="color:#d97706;font-size:.78rem;"></i>
                 How Your Donation Was Used
             </div>
+
+        <!-- AI-generated impact summary -->
+        <?php if (!empty($summary_map[$c['id']])): $sum = $summary_map[$c['id']]; ?>
+        <div style="padding:14px 20px;border-top:1px solid #f1f5f9;background:linear-gradient(135deg,#f0fdf4,#dcfce7);">
+            <div style="font-size:.75rem;font-weight:700;color:#15803d;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <i class="bi bi-stars" style="color:#15803d;font-size:.78rem;"></i>
+                Your Impact Summary
+                <span style="background:#15803d;color:white;padding:1px 7px;border-radius:20px;font-size:.62rem;font-weight:700;margin-left:4px;">AI Generated</span>
+            </div>
+            <p style="font-size:.79rem;color:#374151;line-height:1.65;margin:0;">
+                <?= htmlspecialchars($sum['summary_text']) ?>
+            </p>
+            <div style="font-size:.66rem;color:#94a3b8;margin-top:6px;">Generated <?= formatDate($sum['generated_at']) ?></div>
+        </div>
+        <?php endif; ?>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">
                 <?php foreach(array_slice($allocs,0,4) as $al):
                     $al_styles = [

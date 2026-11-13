@@ -288,6 +288,64 @@ function requireRole($roles) {
 }
 
 // ----------------------
+// Generate donor impact summary after verification
+// ----------------------
+if (!function_exists('generateImpactSummary')) {
+    function generateImpactSummary($db, int $donor_id, int $campaign_id, float $donation_amount): void {
+        // Get campaign data
+        $cid = (int)$campaign_id;
+        $did = (int)$donor_id;
+        $camp = $db->query("SELECT title, target_amount, raised_amount FROM campaigns WHERE id=$cid")->fetch_assoc();
+        if (!$camp) return;
+
+        // Get donor's total to this campaign
+        $donor_total = (float)$db->query("SELECT COALESCE(SUM(amount),0) as t FROM donations WHERE donor_id=$did AND campaign_id=$cid AND status='verified'")->fetch_assoc()['t'];
+
+        // Get total donors for this campaign
+        $total_donors = (int)$db->query("SELECT COUNT(DISTINCT donor_id) as c FROM donations WHERE campaign_id=$cid AND status='verified'")->fetch_assoc()['c'];
+
+        // Calculate percentages
+        $camp_pct    = $camp['target_amount'] > 0 ? round(($camp['raised_amount'] / $camp['target_amount']) * 100, 1) : 0;
+        $contrib_pct = $camp['raised_amount'] > 0  ? round(($donor_total / $camp['raised_amount']) * 100, 1) : 0;
+
+        $raised_m = number_format($camp['raised_amount'] / 1000000, 1);
+        $target_m = number_format($camp['target_amount'] / 1000000, 0);
+        $this_m   = number_format($donation_amount / 1000000, 1);
+        $title    = $camp['title'];
+
+        // Build natural-language summary
+        $lines = [];
+        $lines[] = "Your donation of " . number_format($donation_amount, 0, '.', ',') . " VND to \"{$title}\" has been verified and recorded.";
+
+        if ($contrib_pct > 0) {
+            $lines[] = "Your total contributions to this campaign account for {$contrib_pct}% of all funds raised so far.";
+        }
+
+        $lines[] = "Together with {$total_donors} donor" . ($total_donors != 1 ? 's' : '') . ", this campaign has now raised {$raised_m}M VND — {$camp_pct}% of its {$target_m}M VND target.";
+
+        if ($camp_pct >= 100) {
+            $lines[] = "Thanks to supporters like you, this campaign has reached its fundraising goal!";
+        } elseif ($camp_pct >= 75) {
+            $lines[] = "The campaign is in its final stretch. Your support is making a real difference.";
+        } elseif ($camp_pct >= 50) {
+            $lines[] = "The campaign is more than halfway to its goal. Every contribution counts.";
+        } else {
+            $lines[] = "Your generosity helps build momentum for this important cause.";
+        }
+
+        $summary_text = implode(' ', $lines);
+        $st = $db->real_escape_string($summary_text);
+
+        // Upsert — replace existing summary for same donor+campaign if any
+        $db->query("
+            INSERT INTO impact_summaries (donor_id, campaign_id, summary_text, generated_at, is_sent)
+            VALUES ($did, $cid, '$st', NOW(), 0)
+            ON DUPLICATE KEY UPDATE summary_text='$st', generated_at=NOW(), is_sent=0
+        ");
+    }
+}
+
+// ----------------------
 // Redirect to role dashboard
 // ----------------------
 function redirectToDashboard() {
