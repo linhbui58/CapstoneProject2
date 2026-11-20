@@ -305,7 +305,99 @@ $msg_count   = $messages    ? $messages->num_rows    : 0;
         $total_alloc = 0;
         $rows = [];
         while ($a = $allocations->fetch_assoc()) { $total_alloc += $a['amount']; $rows[] = $a; }
+        $raised       = (float)$campaign['raised_amount'];
+        $target       = (float)$campaign['target_amount'];
+        $disbursed    = $total_alloc;
+        $remaining    = max(0, $raised - $disbursed);
+        $unraised     = max(0, $target - $raised);
+        $util_pct     = $raised > 0 ? round($disbursed / $raised * 100, 1) : 0;
+        // Build chart data: only non-zero slices
+        $chart_labels  = [];
+        $chart_data    = [];
+        $chart_colors  = [];
+        if ($disbursed > 0) { $chart_labels[] = 'Disbursed'; $chart_data[] = round($disbursed/1000); $chart_colors[] = '#f59e0b'; }
+        if ($remaining > 0) { $chart_labels[] = 'Raised – not yet allocated'; $chart_data[] = round($remaining/1000); $chart_colors[] = '#60a5fa'; }
+        if ($unraised  > 0) { $chart_labels[] = 'Still needed'; $chart_data[] = round($unraised/1000); $chart_colors[] = '#e2e8f0'; }
         ?>
+
+        <!-- ── Fund Usage Visual Overview ── -->
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.04);">
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:14px;display:flex;align-items:center;gap:6px;">
+                <i class="bi bi-pie-chart-fill" style="color:#f59e0b;"></i> How Your Donations Are Used
+            </div>
+            <div style="display:grid;grid-template-columns:160px 1fr;gap:20px;align-items:center;">
+                <!-- Doughnut chart -->
+                <div style="position:relative;width:160px;height:160px;flex-shrink:0;">
+                    <canvas id="fundChart-<?= $id ?>" width="160" height="160"></canvas>
+                    <!-- Center label -->
+                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+                        <div style="font-size:1.1rem;font-weight:900;color:#d97706;"><?= $util_pct ?>%</div>
+                        <div style="font-size:.6rem;font-weight:600;color:#94a3b8;text-align:center;line-height:1.2;">utilized</div>
+                    </div>
+                </div>
+                <!-- Legend + KPI breakdown -->
+                <div>
+                    <?php
+                    $legend_items = [];
+                    if ($disbursed > 0) $legend_items[] = ['#f59e0b','Disbursed',formatCurrency($disbursed),$raised>0?round($disbursed/$raised*100,1):0,'%'];
+                    if ($remaining > 0) $legend_items[] = ['#60a5fa','Raised – pending allocation',formatCurrency($remaining),$raised>0?round($remaining/$raised*100,1):0,'%'];
+                    if ($unraised  > 0) $legend_items[] = ['#e2e8f0','Still needed to reach goal',formatCurrency($unraised),$target>0?round($unraised/$target*100,1):0,'% of goal'];
+                    foreach ($legend_items as $li): ?>
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f8fafc;">
+                        <div style="width:12px;height:12px;border-radius:3px;background:<?= $li[0] ?>;flex-shrink:0;"></div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:.74rem;font-weight:600;color:#374151;"><?= $li[1] ?></div>
+                            <div style="font-size:.7rem;color:#94a3b8;"><?= $li[2] ?> · <?= $li[3] ?><?= $li[4] ?></div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                    <!-- Fund utilization KPI badge -->
+                    <div style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:<?= $util_pct>0?'#fffbeb':'#f8fafc' ?>;border:1px solid <?= $util_pct>0?'#fde68a':'#e2e8f0' ?>;border-radius:8px;padding:6px 12px;">
+                        <i class="bi bi-shield-check-fill" style="color:<?= $util_pct>0?'#d97706':'#94a3b8' ?>;font-size:.8rem;"></i>
+                        <span style="font-size:.72rem;font-weight:700;color:<?= $util_pct>0?'#92400e':'#64748b' ?>;">
+                            Fund Utilization Rate: <?= $util_pct ?>%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart.js script for fund doughnut -->
+        <script src="<?= SITE_URL ?>/assets/js/chart.umd.min.js"></script>
+        <script>
+        (function() {
+            var ctx = document.getElementById('fundChart-<?= $id ?>');
+            if (!ctx) return;
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: <?= json_encode($chart_labels) ?>,
+                    datasets: [{
+                        data: <?= json_encode($chart_data) ?>,
+                        backgroundColor: <?= json_encode($chart_colors) ?>,
+                        borderWidth: 2,
+                        borderColor: '#fff',
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    cutout: '68%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(c) {
+                                    return ' ' + new Intl.NumberFormat('vi-VN').format(c.raw * 1000) + ' VND';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })();
+        </script>
+
         <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1.5px solid #fde68a;border-radius:14px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
             <div>
                 <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#92400e;margin-bottom:4px;">Total Disbursed / Completed</div>
@@ -313,7 +405,7 @@ $msg_count   = $messages    ? $messages->num_rows    : 0;
             </div>
             <div style="text-align:right;">
                 <div style="font-size:.68rem;color:#92400e;font-weight:600;margin-bottom:3px;"><?= $alloc_count ?> allocation<?= $alloc_count>1?'s':'' ?></div>
-                <div style="font-size:.74rem;color:#a16207;"><?= $campaign['raised_amount']>0 ? round($total_alloc/$campaign['raised_amount']*100,1) : 0 ?>% of funds raised</div>
+                <div style="font-size:.74rem;color:#a16207;"><?= $util_pct ?>% of funds raised</div>
             </div>
         </div>
 

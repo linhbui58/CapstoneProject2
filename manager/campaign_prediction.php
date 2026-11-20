@@ -31,29 +31,113 @@ $campaigns = $db->query("
     ORDER BY raised_amount DESC, c.title ASC
 ");
 
-// ── Prediction logic ─────────────────────────────────
-function predictCampaign($c) {
+// ── Weighted Moving Average prediction ───────────────
+// Uses two windows: 7-day (weight 0.6) and 30-day (weight 0.4).
+// Falls back to full-history straight-line when data is sparse (<7 days).
+// Also computes a ±confidence interval based on day-to-day variance.
+function predictCampaign($c, $db = null) {
     $days_elapsed = max(1, (int)$c['days_elapsed']);
     $days_left    = max(0, (int)$c['days_left']);
     $raised       = (float)$c['raised_amount'];
     $target       = (float)$c['target_amount'];
-    $daily_rate   = $raised / $days_elapsed;
+    $camp_id      = (int)$c['id'];
+
+    // ── Default: straight-line daily rate (fallback) ──
+    $daily_rate_full = $raised / $days_elapsed;
+
+    // ── Fetch recent daily totals for WMA ────────────
+    $rate_7d = null;
+    $rate_30d = null;
+    $daily_variance = 0;
+
+    if ($db) {
+        // 7-day window
+        $r7 = $db->query("
+            SELECT COALESCE(SUM(amount),0) / GREATEST(DATEDIFF(NOW(), DATE_SUB(CURDATE(),INTERVAL 7 DAY)), 1) as rate
+            FROM donations
+            WHERE campaign_id=$camp_id AND status='verified'
+              AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        ");
+        if ($r7) $rate_7d = (float)$r7->fetch_assoc()['rate'];
+
+        // 30-day window
+        $r30 = $db->query("
+            SELECT COALESCE(SUM(amount),0) / GREATEST(DATEDIFF(NOW(), DATE_SUB(CURDATE(),INTERVAL 30 DAY)), 1) as rate
+            FROM donations
+            WHERE campaign_id=$camp_id AND status='verified'
+              AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        ");
+        if ($r30) $rate_30d = (float)$r30->fetch_assoc()['rate'];
+
+        // Day-to-day variance for confidence interval (last 14 days)
+        $daily_rows = $db->query("
+            SELECT COALESCE(SUM(amount),0) as day_total
+            FROM donations
+            WHERE campaign_id=$camp_id AND status='verified'
+              AND created_at >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+            GROUP BY DATE(created_at)
+        ");
+        $day_totals = [];
+        if ($daily_rows) while ($dr = $daily_rows->fetch_assoc()) $day_totals[] = (float)$dr['day_total'];
+        if (count($day_totals) >= 2) {
+            $mean = array_sum($day_totals) / count($day_totals);
+            $variance = array_sum(array_map(fn($x) => pow($x - $mean, 2), $day_totals)) / count($day_totals);
+            $daily_variance = sqrt($variance);
+        }
+    }
+
+    // ── Compute weighted daily rate ───────────────────
+    // If we have both windows: WMA = 0.6 × rate_7d + 0.4 × rate_30d
+    // If only 30d:  use 30d rate
+    // If neither:   use full-history rate
+    $method = 'straight_line';
+    if ($rate_7d !== null && $rate_30d !== null && ($rate_7d > 0 || $rate_30d > 0)) {
+        $daily_rate = 0.6 * $rate_7d + 0.4 * $rate_30d;
+        $method = 'weighted_7d_30d';
+    } elseif ($rate_30d !== null && $rate_30d > 0) {
+        $daily_rate = $rate_30d;
+        $method = 'straight_30d';
+    } else {
+        $daily_rate = $daily_rate_full;
+        $method = 'straight_line';
+    }
+
+    // ── Projected total ───────────────────────────────
     $projected    = $raised + ($daily_rate * $days_left);
     $proj_pct     = $target > 0 ? min(200, ($projected / $target) * 100) : 0;
+
+    // ── Confidence interval (±1 std-dev × sqrt(days_left)) ──
+    $conf_range   = $daily_variance > 0 ? $daily_variance * sqrt(max(1, $days_left)) : 0;
+    $proj_low     = max(0, $projected - $conf_range);
+    $proj_high    = $projected + $conf_range;
+    $proj_low_pct  = $target > 0 ? min(200, ($proj_low  / $target) * 100) : 0;
+    $proj_high_pct = $target > 0 ? min(200, ($proj_high / $target) * 100) : 0;
+
+    // ── Days to target at current WMA rate ────────────
     $days_to_target = ($daily_rate > 0 && $raised < $target)
         ? ceil(($target - $raised) / $daily_rate) : 0;
 
+    // ── Status ────────────────────────────────────────
     if ($raised >= $target)        $status = 'goal_reached';
     elseif ($proj_pct >= 90)       $status = 'on_track';
     elseif ($proj_pct >= 60)       $status = 'needs_attention';
     else                           $status = 'at_risk';
 
     return [
-        'daily_rate'     => $daily_rate,
-        'projected'      => $projected,
-        'proj_pct'       => round($proj_pct, 1),
-        'days_to_target' => $days_to_target,
-        'status'         => $status,
+        'daily_rate'      => $daily_rate,
+        'daily_rate_full' => $daily_rate_full,
+        'rate_7d'         => $rate_7d,
+        'rate_30d'        => $rate_30d,
+        'projected'       => $projected,
+        'proj_pct'        => round($proj_pct, 1),
+        'proj_low'        => $proj_low,
+        'proj_high'       => $proj_high,
+        'proj_low_pct'    => round($proj_low_pct, 1),
+        'proj_high_pct'   => round($proj_high_pct, 1),
+        'conf_range'      => $conf_range,
+        'days_to_target'  => $days_to_target,
+        'method'          => $method,
+        'status'          => $status,
     ];
 }
 
@@ -95,7 +179,7 @@ $all_predictions = [];
 if($campaigns && $campaigns->num_rows > 0) {
     $campaigns->data_seek(0);
     while($c = $campaigns->fetch_assoc()) {
-        $pred = predictCampaign($c);
+        $pred = predictCampaign($c, $db);
         $summary[$pred['status']]++;
         $all_predictions[$c['id']] = $pred;
     }
@@ -270,11 +354,27 @@ $total_campaigns_analyzed = array_sum($summary);
                         <td class="prediction-forecast" data-label="Forecast at end date">
                             <?= formatCurrency((float)$pred['projected']) ?>
                             <small><?= number_format((float)$pred['proj_pct'], 1) ?>% of <?= formatCurrency((float)$c['target_amount']) ?></small>
+                            <?php if ($pred['conf_range'] > 0): ?>
+                            <small style="color:#94a3b8;font-size:.64rem;display:block;margin-top:2px;">
+                                Range: <?= number_format($pred['proj_low_pct'],1) ?>% – <?= number_format($pred['proj_high_pct'],1) ?>%
+                            </small>
+                            <?php endif; ?>
                             <div class="prediction-progress-track mt-2" aria-label="<?= number_format((float)$pred['proj_pct'], 1) ?> percent projected">
                                 <div class="prediction-progress-fill" style="width:<?= $pct_projected_bar ?>%;background:<?= $cfg['color'] ?>;"></div>
                             </div>
                         </td>
-                        <td data-label="Daily average"><?= formatCurrency((float)$pred['daily_rate']) ?><small class="d-block text-muted">per day</small>                        </td>
+                        <td data-label="Daily average">
+                            <?= formatCurrency((float)$pred['daily_rate']) ?>
+                            <small class="d-block" style="color:#94a3b8;font-size:.65rem;">
+                                <?php if ($pred['method'] === 'weighted_7d_30d'): ?>
+                                WMA (7d×0.6 + 30d×0.4)
+                                <?php elseif ($pred['method'] === 'straight_30d'): ?>
+                                30-day avg
+                                <?php else: ?>
+                                All-time avg
+                                <?php endif; ?>
+                            </small>
+                        </td>
                         <td data-label="Days left"><?= $days_left ?></td>
                         <td data-label="Supporting figures">
                             <details class="prediction-details">
@@ -298,15 +398,33 @@ $total_campaigns_analyzed = array_sum($summary);
                                             <div class="prediction-detail-value"><?= formatCurrency((float)$c['avg_donation']) ?></div>
                                         </div>
                                         <div>
+                                            <div class="prediction-detail-label">7-day daily rate</div>
+                                            <div class="prediction-detail-value"><?= $pred['rate_7d'] !== null ? formatCurrency($pred['rate_7d']) : '—' ?>/day</div>
+                                        </div>
+                                        <div>
+                                            <div class="prediction-detail-label">30-day daily rate</div>
+                                            <div class="prediction-detail-value"><?= $pred['rate_30d'] !== null ? formatCurrency($pred['rate_30d']) : '—' ?>/day</div>
+                                        </div>
+                                        <div>
+                                            <div class="prediction-detail-label">WMA daily rate used</div>
+                                            <div class="prediction-detail-value"><?= formatCurrency($pred['daily_rate']) ?>/day</div>
+                                        </div>
+                                        <?php if ($pred['conf_range'] > 0): ?>
+                                        <div>
+                                            <div class="prediction-detail-label">Forecast range (±1σ)</div>
+                                            <div class="prediction-detail-value"><?= number_format($pred['proj_low_pct'],1) ?>% – <?= number_format($pred['proj_high_pct'],1) ?>%</div>
+                                        </div>
+                                        <?php endif; ?>
+                                        <div>
                                             <div class="prediction-detail-label">Projected remaining amount</div>
                                             <div class="prediction-detail-value"><?= formatCurrency(max(0, (float)$c['target_amount'] - (float)$pred['projected'])) ?></div>
                                         </div>
                                         <div>
-                                            <div class="prediction-detail-label">Estimated time to target at current pace</div>
+                                            <div class="prediction-detail-label">Estimated time to target</div>
                                             <div class="prediction-detail-value"><?= $pred['days_to_target'] > 0 ? number_format((int)$pred['days_to_target']) . ' days' : ((float)$c['raised_amount'] >= (float)$c['target_amount'] ? 'Target reached' : 'Not currently estimated') ?></div>
                                         </div>
                                         <div>
-                                            <div class="prediction-detail-label">Elapsed days included in average</div>
+                                            <div class="prediction-detail-label">Elapsed days</div>
                                             <div class="prediction-detail-value"><?= max(0, (int)$c['days_elapsed']) ?> days</div>
                                         </div>
                                     </div>
@@ -336,7 +454,7 @@ $total_campaigns_analyzed = array_sum($summary);
 
 <aside class="prediction-method">
     <i class="prediction-method-icon bi bi-lightbulb" aria-hidden="true"></i>
-    <div><strong>How to read this forecast:</strong> Forecast = verified funds raised + (average daily verified funds × days remaining). The daily average is calculated from the campaign start date to today. This is a straight-line estimate, not a statistical prediction; it assumes the observed rate continues and does not account for seasonality or future fundraising activity.</div>
+    <div><strong>How forecasts are calculated:</strong> This page uses a <strong>Weighted Moving Average (WMA)</strong> model: when sufficient data exists, the daily rate is computed as <em>0.6 × (7-day avg) + 0.4 × (30-day avg)</em>, giving more weight to recent fundraising momentum. When recent data is sparse the model falls back to a 30-day or all-time straight-line average. The forecast range (±) is derived from the standard deviation of daily donation totals over the past 14 days projected forward — wider ranges indicate more variable donation patterns. The model assumes the observed pace continues and does not account for planned fundraising events or seasonal factors.</div>
 </aside>
 
 <?php require_once dirname(__DIR__) . '/includes/footer.php'; ?>

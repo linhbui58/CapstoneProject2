@@ -224,6 +224,99 @@ $campaign_status_styles = [
     </div>
 </section>
 
+<!-- ══ KPI CARDS ══════════════════════════════════════════════ -->
+<?php
+// KPI: fund-utilization rate = disbursed+completed / total raised
+$fund_util_rate = $campaign_verified_raised > 0
+    ? round($util_spent_total / $campaign_verified_raised * 100, 1) : 0;
+$ack_h_val = round((float)$ack_time, 1);
+
+$kpi_cards = [
+    [
+        'icon'    => 'bi-trophy-fill',
+        'value'   => number_format($target_attainment, 1) . '%',
+        'label'   => 'Campaign Target Attainment',
+        'sub'     => $reached_target . ' of ' . $total_camps_eval . ' campaigns reached goal',
+        'color'   => '#15803d',
+        'bg'      => 'linear-gradient(135deg,#dcfce7,#f0fdf4)',
+        'border'  => '#bbf7d0',
+        'iconbg'  => '#15803d',
+        'trend'   => $target_attainment >= 50 ? 'good' : 'warn',
+    ],
+    [
+        'icon'    => 'bi-arrow-repeat',
+        'value'   => number_format($retention_rate, 1) . '%',
+        'label'   => 'Donor Retention Rate',
+        'sub'     => $repeat_donors . ' of ' . $total_donors . ' donors returned',
+        'color'   => '#1447c0',
+        'bg'      => 'linear-gradient(135deg,#dbeafe,#eff6ff)',
+        'border'  => '#bfdbfe',
+        'iconbg'  => '#1447c0',
+        'trend'   => $retention_rate >= 30 ? 'good' : 'warn',
+    ],
+    [
+        'icon'    => 'bi-clock-history',
+        'value'   => number_format($ack_h_val, 1) . 'h',
+        'label'   => 'Avg Acknowledgement Time',
+        'sub'     => 'From donation submission to verification',
+        'color'   => '#d97706',
+        'bg'      => 'linear-gradient(135deg,#fef9c3,#fffbeb)',
+        'border'  => '#fde68a',
+        'iconbg'  => '#d97706',
+        'trend'   => $ack_h_val <= 24 ? 'good' : 'warn',
+    ],
+    [
+        'icon'    => 'bi-pie-chart-fill',
+        'value'   => number_format($fund_util_rate, 1) . '%',
+        'label'   => 'Fund Utilization Rate',
+        'sub'     => formatCurrency($util_spent_total) . ' disbursed of funds raised',
+        'color'   => '#7c3aed',
+        'bg'      => 'linear-gradient(135deg,#ede9fe,#f5f3ff)',
+        'border'  => '#ddd6fe',
+        'iconbg'  => '#7c3aed',
+        'trend'   => $fund_util_rate > 0 ? 'good' : 'neutral',
+    ],
+];
+?>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px;">
+<?php foreach ($kpi_cards as $kpi): ?>
+<div style="background:<?= $kpi['bg'] ?>;border:1.5px solid <?= $kpi['border'] ?>;border-radius:16px;padding:20px 20px 16px;box-shadow:0 4px 16px rgba(0,0,0,.05);position:relative;overflow:hidden;transition:transform .15s,box-shadow .15s;"
+     onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.1)'"
+     onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 16px rgba(0,0,0,.05)'">
+    <!-- Background circle decoration -->
+    <div style="position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;background:<?= $kpi['color'] ?>;opacity:.07;pointer-events:none;"></div>
+    <!-- Icon -->
+    <div style="display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:<?= $kpi['iconbg'] ?>;margin-bottom:12px;box-shadow:0 3px 8px rgba(0,0,0,.18);">
+        <i class="bi <?= $kpi['icon'] ?>" style="color:white;font-size:.95rem;"></i>
+    </div>
+    <!-- Value -->
+    <div style="font-size:1.9rem;font-weight:800;color:<?= $kpi['color'] ?>;letter-spacing:-.04em;line-height:1;margin-bottom:4px;">
+        <?= $kpi['value'] ?>
+    </div>
+    <!-- Label -->
+    <div style="font-size:.72rem;font-weight:700;color:#374151;margin-bottom:4px;line-height:1.3;">
+        <?= $kpi['label'] ?>
+    </div>
+    <!-- Sub -->
+    <div style="font-size:.68rem;color:#6b7280;line-height:1.4;">
+        <?= $kpi['sub'] ?>
+    </div>
+    <!-- Trend dot -->
+    <div style="position:absolute;top:16px;right:16px;">
+        <?php if ($kpi['trend'] === 'good'): ?>
+        <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(21,128,61,.1);color:#15803d;font-size:.62rem;font-weight:700;padding:3px 7px;border-radius:20px;border:1px solid rgba(21,128,61,.2);">
+            <i class="bi bi-check-circle-fill" style="font-size:.6rem;"></i>On Target
+        </span>
+        <?php elseif ($kpi['trend'] === 'warn'): ?>
+        <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(217,119,6,.1);color:#d97706;font-size:.62rem;font-weight:700;padding:3px 7px;border-radius:20px;border:1px solid rgba(217,119,6,.2);">
+            <i class="bi bi-exclamation-circle-fill" style="font-size:.6rem;"></i>Review
+        </span>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endforeach; ?>
+</div>
+
 <section class="report-summary" aria-label="Fundraising summary">
     <div>
         <div class="report-summary-label">Total funds raised</div>
